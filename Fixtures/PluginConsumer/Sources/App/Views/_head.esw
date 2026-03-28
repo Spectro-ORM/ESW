@@ -1,0 +1,8 @@
+<%!
+var title: String
+%>
+<head>
+  <meta charset="utf-8">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="<%= assetPath("app.css") %>">
+</head>

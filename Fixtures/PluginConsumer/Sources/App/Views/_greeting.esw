@@ -1,0 +1,5 @@
+<%!
+var name: String
+var greeting: String = "Hello"
+%>
+<p><%= greeting %>, <%= name %>!</p>
