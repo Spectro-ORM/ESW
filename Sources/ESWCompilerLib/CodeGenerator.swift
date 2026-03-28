@@ -140,7 +140,7 @@ public struct CodeGenerator {
             case .text(let s, let meta):
                 if !s.isEmpty {
                     if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
-                    if containsNewline(s) {
+                    if s.contains("\n") {
                         let h = rawStringHashes(s)
                         lines.append("    _buf += \(h)\"\"\"")
                         lines.append(s)
@@ -183,20 +183,15 @@ public struct CodeGenerator {
         return parts.joined(separator: ",\n    ")
     }
 
-    private func containsNewline(_ s: String) -> Bool {
-        for c in s where c == "\n" { return true }
-        return false
-    }
-
     /// Returns the minimum hash string needed for a raw string literal of `s`.
     private func rawStringHashes(_ s: String) -> String {
         var hashes = 1
-        while containsSubstring(s, "\"" + String(repeating: "#", count: hashes)) ||
-              containsSubstring(s, String(repeating: "#", count: hashes) + "\"") {
+        while s.contains("\"" + String(repeating: "#", count: hashes)) ||
+              s.contains(String(repeating: "#", count: hashes) + "\"") {
             hashes += 1
         }
         // Multi-line raw strings also need to avoid """# collisions
-        while containsSubstring(s, "\"\"\"" + String(repeating: "#", count: hashes)) {
+        while s.contains("\"\"\"" + String(repeating: "#", count: hashes)) {
             hashes += 1
         }
         return String(repeating: "#", count: hashes)
@@ -206,18 +201,6 @@ public struct CodeGenerator {
     private func rawStringLiteral(_ s: String) -> String {
         let h = rawStringHashes(s)
         return "\(h)\"\(s)\"\(h)"
-    }
-
-    private func containsSubstring(_ haystack: String, _ needle: String) -> Bool {
-        guard !needle.isEmpty else { return true }
-        var i = haystack.startIndex
-        while i <= haystack.endIndex {
-            let remaining = haystack[i...]
-            guard remaining.count >= needle.count else { return false }
-            if remaining.hasPrefix(needle) { return true }
-            i = haystack.index(after: i)
-        }
-        return false
     }
 
     private static let swiftKeywords: Set<String> = [

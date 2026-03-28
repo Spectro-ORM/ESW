@@ -36,7 +36,7 @@ struct ESWCompilerCLI {
         do {
             let source = try String(contentsOfFile: inputPath, encoding: .utf8)
             let filename = URL(fileURLWithPath: inputPath).lastPathComponent
-            let result = try compile(
+            let result = try ESWCompilerLib.compile(
                 source: source,
                 filename: filename,
                 sourceFile: inputPath,
@@ -67,30 +67,6 @@ struct ESWCompilerCLI {
             fputs("error: \(error)\n", stderr)
             exit(1)
         }
-    }
-
-    static func compile(
-        source: String,
-        filename: String,
-        sourceFile: String,
-        emitSourceLocations: Bool
-    ) throws -> String {
-        var tokenizer = Tokenizer(source: source, file: sourceFile)
-        let rawTokens = try tokenizer.tokenize()
-        let trimmedTokens = WhitespaceTrimmer.trim(rawTokens)
-        let parameters = try AssignsParser.parse(tokens: trimmedTokens, file: sourceFile)
-        let bodyTokens = trimmedTokens.filter {
-            if case .assigns = $0 { return false }
-            return true
-        }
-        let generator = CodeGenerator(
-            tokens: bodyTokens,
-            parameters: parameters,
-            sourceFile: sourceFile,
-            filename: filename,
-            emitSourceLocations: emitSourceLocations
-        )
-        return generator.generate()
     }
 
     static func printUsageAndExit() -> Never {

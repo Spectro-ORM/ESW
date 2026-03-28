@@ -33,17 +33,10 @@ public enum WhitespaceTrimmer {
                 result[i] = .code(codeContent, metadata: metadata)
             }
 
-            // Check preceding text token
-            let trimmedPrev = i > 0 ? trimTrailingLineWhitespace(&result, at: i - 1) : true
-
-            // Check following text token
-            let trimmedNext = i + 1 < result.count ? trimLeadingLineWhitespace(&result, at: i + 1) : true
-
-            // If both sides match, we've already trimmed in-place above.
-            // If only one side matched, the trim was still applied (intentional:
-            // first/last lines in the file are treated as matching the missing side).
-            _ = trimmedPrev
-            _ = trimmedNext
+            // Trim surrounding whitespace — first/last lines in the file
+            // are treated as matching the missing side.
+            if i > 0 { trimTrailingLineWhitespace(&result, at: i - 1) }
+            if i + 1 < result.count { trimLeadingLineWhitespace(&result, at: i + 1) }
 
             i += 1
         }

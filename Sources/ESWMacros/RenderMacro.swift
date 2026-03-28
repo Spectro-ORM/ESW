@@ -39,6 +39,14 @@ public struct RenderMacro: ExpressionMacro {
         }
         let templatePath = try extractString(from: firstArg.expression, hint: "template path")
 
+        // Catch inline HTML passed to #render — should use #esw instead
+        if templatePath.contains("<") || templatePath.contains("\n") {
+            throw ESWMacroError(
+                "#render expects a file path (e.g. #render(\"template.esw\")), not inline HTML. " +
+                "Use #esw(\"...\") for inline templates."
+            )
+        }
+
         // Resolve the .esw file relative to the invoking source file
         let sourceFilePath = try sourceFile(of: node, in: context)
         let resolvedPath = try resolveTemplate(templatePath, from: sourceFilePath)
@@ -57,10 +65,15 @@ public struct RenderMacro: ExpressionMacro {
 
     static func expand(source: String, file: String) throws -> ExprSyntax {
         var tokenizer = Tokenizer(source: source, file: file)
-        let tokens = try tokenizer.tokenize()
-        let parameters = try AssignsParser.parse(tokens: tokens, file: file)
+        let rawTokens = try tokenizer.tokenize()
+        let trimmedTokens = WhitespaceTrimmer.trim(rawTokens)
+        let parameters = try AssignsParser.parse(tokens: trimmedTokens, file: file)
+        let bodyTokens = trimmedTokens.filter {
+            if case .assigns = $0 { return false }
+            return true
+        }
         let generator = CodeGenerator(
-            tokens: tokens,
+            tokens: bodyTokens,
             parameters: parameters,
             sourceFile: file,
             filename: file,
