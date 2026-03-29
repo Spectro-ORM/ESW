@@ -122,7 +122,7 @@ public struct CodeGenerator {
         lines.append("    \(connParamList)")
         lines.append(") -> Connection {")
 
-        let callArgs = parameters.map {
+        let callArgs = parameters.filter { $0.name != "conn" }.map {
             let escaped = Self.escapedParamName($0.name)
             return "\(escaped): \(escaped)"
         }.joined(separator: ", ")
@@ -173,6 +173,8 @@ public struct CodeGenerator {
             parts.append("conn: Connection")
         }
         for param in parameters {
+            // Skip `conn` — it is always auto-injected above.
+            if param.name == "conn" { continue }
             let name = Self.escapedParamName(param.name)
             if let defaultValue = param.defaultValue {
                 parts.append("\(name): \(param.type) = \(defaultValue)")

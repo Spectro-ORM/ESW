@@ -18,6 +18,12 @@ public enum Naming {
             stem = String(stem.dropLast(4))
         }
 
+        // Strip secondary extensions (e.g. "layout.html" → "layout").
+        // Supports both `index.html.esw` and plain `index.esw`.
+        if let dotIndex = stem.firstIndex(of: ".") {
+            stem = String(stem[..<dotIndex])
+        }
+
         // Strip leading underscores
         while stem.hasPrefix("_") {
             stem = String(stem.dropFirst())

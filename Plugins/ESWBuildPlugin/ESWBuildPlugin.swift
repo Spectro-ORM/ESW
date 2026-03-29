@@ -15,7 +15,11 @@ struct ESWBuildPlugin: BuildToolPlugin {
         let tool = try context.tool(named: "ESWCompilerCLI")
 
         return eswFiles.map { file in
-            let stem = file.url.deletingPathExtension().lastPathComponent
+            // Strip all extensions: "layout.html.esw" → "layout"
+            var stem = file.url.deletingPathExtension().lastPathComponent
+            if let dotIndex = stem.firstIndex(of: ".") {
+                stem = String(stem[..<dotIndex])
+            }
             let outputName = "render_\(stem).swift"
             let output = context.pluginWorkDirectoryURL.appending(path: outputName)
 

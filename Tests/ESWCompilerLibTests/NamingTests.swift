@@ -35,4 +35,25 @@ struct NamingTests {
     @Test func multipleUnderscores() {
         #expect(Naming.functionName(from: "__private_view.esw") == "renderPrivateView")
     }
+
+    @Test func doubleExtensionHTML() {
+        #expect(Naming.functionName(from: "layout.html.esw") == "renderLayout")
+    }
+
+    @Test func doubleExtensionHTMLSnakeCase() {
+        #expect(Naming.functionName(from: "user_profile.html.esw") == "renderUserProfile")
+    }
+
+    @Test func doubleExtensionPartial() {
+        #expect(Naming.functionName(from: "_nav_bar.html.esw") == "renderNavBar")
+    }
+
+    @Test func doubleExtensionBufferName() {
+        #expect(Naming.bufferFunctionName(from: "_card.html.esw") == "_renderCardBuffer")
+    }
+
+    @Test func doubleExtensionIsPartial() {
+        #expect(Naming.isPartial("_header.html.esw") == true)
+        #expect(Naming.isPartial("header.html.esw") == false)
+    }
 }

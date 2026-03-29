@@ -121,4 +121,24 @@ struct CodeGeneratorTests {
         #expect(output.contains("if user.isAdmin {"))
         #expect(output.contains("}"))
     }
+
+    @Test func connInAssignsNotDuplicated() throws {
+        let source = """
+        <%!
+        var conn: Connection
+        var title: String
+        %>
+        <h1><%= title %></h1>
+        """
+        let output = try generate(source, filename: "page.esw")
+        // conn: Connection should appear exactly once in the function signature
+        let connCount = output.split(separator: "\n").filter { $0.contains("conn: Connection") }.count
+        #expect(connCount == 1)
+        #expect(output.contains("title: String"))
+    }
+
+    @Test func doubleExtensionFunctionName() throws {
+        let output = try generate("<h1>Hi</h1>", filename: "index.html.esw")
+        #expect(output.contains("func renderIndex("))
+    }
 }
