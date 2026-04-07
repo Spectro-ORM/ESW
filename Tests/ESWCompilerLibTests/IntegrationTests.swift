@@ -36,16 +36,15 @@ struct IntegrationTests {
         // Function name
         #expect(output.contains("func renderUserProfile("))
         // Parameters
-        #expect(output.contains("conn: Connection"))
         #expect(output.contains("user: User"))
         #expect(output.contains("posts: [Post]"))
         // Return type
-        #expect(output.contains("-> Connection"))
+        #expect(output.contains("-> String"))
         // Escaped output
-        #expect(output.contains("ESW.escape(user.name)"))
-        #expect(output.contains("ESW.escape(user.email)"))
-        #expect(output.contains("ESW.escape(post.id)"))
-        #expect(output.contains("ESW.escape(post.title)"))
+        #expect(output.contains("_buf.appendEscaped(user.name)"))
+        #expect(output.contains("_buf.appendEscaped(user.email)"))
+        #expect(output.contains("_buf.appendEscaped(post.id)"))
+        #expect(output.contains("_buf.appendEscaped(post.title)"))
         // Control flow
         #expect(output.contains("if user.isAdmin {"))
         #expect(output.contains("for post in posts {"))
@@ -55,8 +54,9 @@ struct IntegrationTests {
         #expect(output.contains("Admin"))
         // Header
         #expect(output.contains("// AUTO-GENERATED"))
-        #expect(output.contains("import Nexus"))
+        #expect(!output.contains("import Nexus"))
         #expect(output.contains("import ESW"))
+        #expect(output.contains("_buf.finalize()"))
     }
 
     @Test func partialEndToEnd() throws {
@@ -76,15 +76,11 @@ struct IntegrationTests {
             emitSourceLocations: false
         )
 
-        // Both functions generated
-        #expect(output.contains("func _renderUserCardBuffer("))
+        // Single String-returning function
         #expect(output.contains("func renderUserCard("))
-        // Buffer variant returns String
+        #expect(output.contains("user: User"))
         #expect(output.contains(") -> String {"))
-        // Conn variant returns Connection
-        #expect(output.contains(") -> Connection {"))
-        // Conn variant delegates
-        #expect(output.contains("conn.html(_renderUserCardBuffer(user: user))"))
+        #expect(output.contains("return _buf.finalize()"))
     }
 
     @Test func emptyTemplate() throws {
@@ -94,9 +90,8 @@ struct IntegrationTests {
             sourceFile: "empty.esw",
             emitSourceLocations: false
         )
-        #expect(output.contains("func renderEmpty("))
-        #expect(output.contains("conn: Connection"))
-        #expect(output.contains("return conn.html(_buf)"))
+        #expect(output.contains("func renderEmpty() -> String {"))
+        #expect(output.contains("return _buf.finalize()"))
     }
 
     @Test func sourceLocationsPresent() throws {
@@ -137,9 +132,9 @@ struct IntegrationTests {
         #expect(output.contains("func renderLayout("))
         #expect(output.contains("title: String"))
         #expect(output.contains("content: String"))
-        #expect(output.contains("ESW.escape(title)"))
+        #expect(output.contains("_buf.appendEscaped(title)"))
         // Raw output for content (already escaped by partial)
-        #expect(output.contains("_buf += content"))
-        #expect(!output.contains("ESW.escape(content)"))
+        #expect(output.contains("_buf.appendUnsafe(content)"))
+        #expect(!output.contains("_buf.appendEscaped(content)"))
     }
 }

@@ -13,8 +13,12 @@ public func compile(
         if case .assigns = $0 { return false }
         return true
     }
+
+    // New ComponentResolver stage
+    let renderNodes = try ComponentResolver.resolve(bodyTokens)
+
     let generator = CodeGenerator(
-        tokens: bodyTokens,
+        renderNodes: renderNodes,
         parameters: parameters,
         sourceFile: sourceFile,
         filename: filename,

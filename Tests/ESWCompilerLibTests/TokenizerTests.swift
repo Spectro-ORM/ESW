@@ -170,4 +170,76 @@ struct TokenizerTests {
             .text("after", metadata: Metadata(file: "test.esw", line: 1, column: 24)),
         ])
     }
+
+    // MARK: - Slot tags
+
+    @Test func slotOpen() throws {
+        let tokens = try tokenize("<:header>")
+        #expect(tokens.count == 1)
+        guard case .slotOpen(let name, _) = tokens[0] else {
+            Issue.record("Expected slotOpen")
+            return
+        }
+        #expect(name == "header")
+    }
+
+    @Test func slotClose() throws {
+        let tokens = try tokenize("</:header>")
+        #expect(tokens.count == 1)
+        guard case .slotClose(let name, _) = tokens[0] else {
+            Issue.record("Expected slotClose")
+            return
+        }
+        #expect(name == "header")
+    }
+
+    @Test func slotWithHyphenatedName() throws {
+        let tokens = try tokenize("<:top-bar>content</:top-bar>")
+        #expect(tokens.count == 3)
+        guard case .slotOpen(let name, _) = tokens[0] else {
+            Issue.record("Expected slotOpen")
+            return
+        }
+        #expect(name == "top-bar")
+        guard case .text(let text, _) = tokens[1] else {
+            Issue.record("Expected text")
+            return
+        }
+        #expect(text == "content")
+        guard case .slotClose(let closeName, _) = tokens[2] else {
+            Issue.record("Expected slotClose")
+            return
+        }
+        #expect(closeName == "top-bar")
+    }
+
+    @Test func slotInsideComponent() throws {
+        let tokens = try tokenize("<.card><:body>Hello</:body></.card>")
+        #expect(tokens.count == 5)
+        guard case .componentTag(let name, _, _, _) = tokens[0] else {
+            Issue.record("Expected componentTag")
+            return
+        }
+        #expect(name == "card")
+        guard case .slotOpen(let slotName, _) = tokens[1] else {
+            Issue.record("Expected slotOpen")
+            return
+        }
+        #expect(slotName == "body")
+        guard case .text(let text, _) = tokens[2] else {
+            Issue.record("Expected text")
+            return
+        }
+        #expect(text == "Hello")
+        guard case .slotClose(let closeName, _) = tokens[3] else {
+            Issue.record("Expected slotClose")
+            return
+        }
+        #expect(closeName == "body")
+        guard case .componentClose(let closeCompName, _) = tokens[4] else {
+            Issue.record("Expected componentClose")
+            return
+        }
+        #expect(closeCompName == "card")
+    }
 }

@@ -1,26 +1,38 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# Development watch script for ESW
+# Watches .esw files and rebuilds when they change
 #
-# Watches .esw files and rebuilds on change.
-# Requires: fswatch (brew install fswatch)
+# Usage:
+#   ./scripts/dev_watch.sh
 #
-# Usage: ./scripts/dev_watch.sh [source_dir]
-#   source_dir defaults to Sources/
+# Requirements:
+#   - fswatch (install via: brew install fswatch)
 
-set -euo pipefail
+set -e
 
-SOURCE_DIR="${1:-Sources}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-if ! command -v fswatch &>/dev/null; then
-    echo "Error: fswatch is required. Install with: brew install fswatch" >&2
-    exit 1
-fi
+echo "🔍 Watching .esw files in $PROJECT_ROOT"
+echo "🔄 Will rebuild on changes..."
+echo ""
+echo "Press Ctrl+C to stop"
+echo ""
 
-echo "Watching .esw files in ${SOURCE_DIR}/ for changes..."
-echo "Press Ctrl+C to stop."
-
-fswatch -o --include='\.esw$' --exclude='.*' "$SOURCE_DIR" | while read -r _; do
-    echo ""
-    echo "--- Change detected, rebuilding... ---"
-    swift build 2>&1
-    echo "--- Done ---"
+# Watch for .esw file changes and rebuild
+fswatch -o "$PROJECT_ROOT" --event=Updated --event=Created --event=Removed \
+  --exclude=".build" \
+  --exclude=".git" \
+  --extended \
+  '\.esw$' | while read -r num; do
+  echo ""
+  echo "📝 Changes detected ($num file(s) affected)"
+  echo "🔨 Rebuilding..."
+  if swift build 2>&1; then
+    echo "✅ Build successful"
+  else
+    echo "❌ Build failed"
+  fi
+  echo ""
+  echo "Waiting for changes..."
 done

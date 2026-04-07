@@ -72,8 +72,9 @@ public struct RenderMacro: ExpressionMacro {
             if case .assigns = $0 { return false }
             return true
         }
+        let renderNodes = try ComponentResolver.resolve(bodyTokens)
         let generator = CodeGenerator(
-            tokens: bodyTokens,
+            renderNodes: renderNodes,
             parameters: parameters,
             sourceFile: file,
             filename: file,

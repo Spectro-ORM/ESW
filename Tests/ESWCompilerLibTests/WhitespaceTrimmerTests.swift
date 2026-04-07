@@ -16,6 +16,10 @@ private enum TokenKind: Equatable {
     case code(String)
     case comment(String)
     case assigns(String)
+    case componentTag(String)
+    case componentClose(String)
+    case slotOpen(String)
+    case slotClose(String)
 }
 
 private func kinds(_ tokens: [Token]) -> [TokenKind] {
@@ -27,6 +31,10 @@ private func kinds(_ tokens: [Token]) -> [TokenKind] {
         case .code(let s, _): .code(s)
         case .comment(let s, _): .comment(s)
         case .assigns(let s, _): .assigns(s)
+        case .componentTag(let name, _, _, _): .componentTag(name)
+        case .componentClose(let name, _): .componentClose(name)
+        case .slotOpen(let name, _): .slotOpen(name)
+        case .slotClose(let name, _): .slotClose(name)
         }
     }
 }

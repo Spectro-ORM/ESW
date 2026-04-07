@@ -53,6 +53,9 @@ struct ESWCompilerCLI {
             case .unterminatedTag(let file, let line, let column):
                 fputs("\(file):\(line):\(column): error: unterminated ESW tag\n", stderr)
                 exit(1)
+            case .malformedComponentTag(let file, let line, let column):
+                fputs("\(file):\(line):\(column): error: malformed component tag\n", stderr)
+                exit(1)
             }
         } catch let error as ESWAssignsError {
             switch error {
@@ -61,6 +64,27 @@ struct ESWCompilerCLI {
                 exit(1)
             case .invalidDeclaration(let file, let line, let text):
                 fputs("\(file):\(line): error: invalid declaration: \(text)\n", stderr)
+                exit(1)
+            }
+        } catch let error as ESWComponentError {
+            switch error {
+            case .unterminatedComponent(let file, let line, let column):
+                fputs("\(file):\(line):\(column): error: unterminated component tag\n", stderr)
+                exit(1)
+            case .unmatchedComponentClose(let file, let line, let column):
+                fputs("\(file):\(line):\(column): error: unmatched component close tag\n", stderr)
+                exit(1)
+            case .unterminatedSlot(let file, let line, let column):
+                fputs("\(file):\(line):\(column): error: unterminated slot tag\n", stderr)
+                exit(1)
+            case .unmatchedSlotClose(let file, let line, let column):
+                fputs("\(file):\(line):\(column): error: unmatched slot close tag\n", stderr)
+                exit(1)
+            case .duplicateSlot(let name, let file, let line):
+                fputs("\(file):\(line): error: duplicate slot '\(name)'\n", stderr)
+                exit(1)
+            case .slotOutsideComponent(let file, let line, let column):
+                fputs("\(file):\(line):\(column): error: slot tag outside component\n", stderr)
                 exit(1)
             }
         } catch {

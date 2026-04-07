@@ -16,8 +16,9 @@ private func generate(
         if case .assigns = $0 { return false }
         return true
     }
+    let renderNodes = try ComponentResolver.resolve(bodyTokens)
     let generator = CodeGenerator(
-        tokens: bodyTokens,
+        renderNodes: renderNodes,
         parameters: parameters,
         sourceFile: sourceFile,
         filename: filename,
@@ -29,52 +30,58 @@ private func generate(
 @Suite("Partials")
 struct PartialsTests {
 
-    @Test func partialGeneratesBothFunctions() throws {
+    @Test func partialGeneratesStringFunction() throws {
         let output = try generate(
             "<%!\nvar user: User\n%>\n<div><%= user.name %></div>",
             filename: "_user_card.esw"
         )
-        // Buffer variant
-        #expect(output.contains("func _renderUserCardBuffer("))
-        #expect(output.contains(") -> String {"))
-        #expect(output.contains("return _buf"))
-        // Connection variant
+        // Single String-returning function (no more two-function shape)
         #expect(output.contains("func renderUserCard("))
-        #expect(output.contains("conn: Connection"))
-        #expect(output.contains(") -> Connection {"))
-        #expect(output.contains("conn.html(_renderUserCardBuffer("))
+        #expect(output.contains("user: User"))
+        #expect(output.contains(") -> String {"))
+        #expect(output.contains("return _buf.finalize()"))
+        // No Connection-related output
+        #expect(!output.contains("Connection"))
+        #expect(!output.contains("conn.html"))
     }
 
-    @Test func nonPartialGeneratesOnlyConnFunction() throws {
+    @Test func nonPartialGeneratesStringFunction() throws {
         let output = try generate("<h1>Hello</h1>", filename: "hello.esw")
-        #expect(output.contains("func renderHello("))
-        #expect(!output.contains("Buffer"))
-        #expect(output.contains("return conn.html(_buf)"))
+        #expect(output.contains("func renderHello() -> String {"))
+        #expect(output.contains("var _buf = ESWBuffer()"))
+        #expect(output.contains("return _buf.finalize()"))
     }
 
-    @Test func bufferVariantHasNoConn() throws {
+    @Test func partialHasNoConnParam() throws {
         let output = try generate(
             "<%!\nvar user: User\n%>\n<p><%= user.name %></p>",
             filename: "_card.esw"
         )
-        // The buffer function should NOT have conn param
-        let bufferLine = output.split(separator: "\n").first { $0.contains("func _renderCardBuffer(") }
-        #expect(bufferLine != nil)
-        #expect(bufferLine?.contains("conn") == false)
+        #expect(output.contains("func renderCard("))
+        #expect(!output.contains("conn"))
     }
 
-    @Test func connVariantCallsBufferWithArgs() throws {
-        let output = try generate(
+    @Test func partialAndNonPartialSameShape() throws {
+        let partial = try generate(
             "<%!\nvar user: User\nvar showEmail: Bool = false\n%>\nhello",
             filename: "_info.esw"
         )
-        #expect(output.contains("_renderInfoBuffer(user: user, showEmail: showEmail)"))
+        let nonPartial = try generate(
+            "<%!\nvar user: User\nvar showEmail: Bool = false\n%>\nhello",
+            filename: "info.esw"
+        )
+        // Both should produce the same signature shape
+        #expect(partial.contains("user: User"))
+        #expect(partial.contains("showEmail: Bool = false"))
+        #expect(nonPartial.contains("user: User"))
+        #expect(nonPartial.contains("showEmail: Bool = false"))
+        #expect(partial.contains("-> String"))
+        #expect(nonPartial.contains("-> String"))
     }
 
     @Test func partialNoParams() throws {
         let output = try generate("<footer>Copyright</footer>", filename: "_footer.esw")
-        #expect(output.contains("func _renderFooterBuffer() -> String {"))
-        #expect(output.contains("func renderFooter("))
-        #expect(output.contains("conn.html(_renderFooterBuffer())"))
+        #expect(output.contains("func renderFooter() -> String {"))
+        #expect(output.contains("return _buf.finalize()"))
     }
 }

@@ -7,7 +7,7 @@ private func tokenize(_ source: String, file: String = "test.esw") throws -> [To
     return try tokenizer.tokenize()
 }
 
-/// Full pipeline helper: source → tokens → trim → parse assigns → generate.
+/// Full pipeline helper: source → tokens → trim → parse assigns → resolve components → generate.
 private func generate(
     _ source: String,
     filename: String = "test.esw",
@@ -22,8 +22,9 @@ private func generate(
         if case .assigns = $0 { return false }
         return true
     }
+    let renderNodes = try ComponentResolver.resolve(bodyTokens)
     let generator = CodeGenerator(
-        tokens: bodyTokens,
+        renderNodes: renderNodes,
         parameters: parameters,
         sourceFile: sourceFile,
         filename: filename,
@@ -111,8 +112,7 @@ struct HardeningTests {
 
     @Test func emptyAssignsProducesNoParams() throws {
         let output = try generate("<%! %>\n<p>hello</p>", filename: "test.esw")
-        #expect(output.contains("func renderTest("))
-        #expect(output.contains("conn: Connection"))
+        #expect(output.contains("func renderTest() -> String {"))
     }
 
     // MARK: - Nested Delimiters
@@ -227,13 +227,12 @@ struct HardeningTests {
         #expect(!output.contains("`name`"))
     }
 
-    @Test func keywordInPartialBufferAndConn() throws {
+    @Test func keywordInPartialEscaped() throws {
         let source = "<%!\nvar `import`: String\n%>\nhello"
         let output = try generate(source, filename: "_widget.esw")
         #expect(output.contains("`import`: String"))
-        let lines = output.split(separator: "\n")
-        let funcLines = lines.filter { $0.contains("`import`") }
-        #expect(funcLines.count >= 2)
+        // Parameter appears in the single generated function
+        #expect(output.contains("func renderWidget("))
     }
 
     @Test func allKeywordsEscaped() throws {
@@ -268,8 +267,8 @@ struct HardeningTests {
         let chunk = "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>\n"
         let largeInput = String(repeating: chunk, count: 100)
         let output = try generate(largeInput, filename: "large.esw")
-        #expect(output.contains("func renderLarge("))
-        #expect(output.contains("return conn.html(_buf)"))
+        #expect(output.contains("func renderLarge() -> String {"))
+        #expect(output.contains("return _buf.finalize()"))
     }
 
     // MARK: - Multi-line Text in Raw Strings
@@ -283,6 +282,6 @@ struct HardeningTests {
     @Test func textWithMixedNewlinesAndTags() throws {
         let source = "<header>\n  <h1><%= title %></h1>\n</header>"
         let output = try generate(source, filename: "test.esw")
-        #expect(output.contains("ESW.escape(title)"))
+        #expect(output.contains("_buf.appendEscaped(title)"))
     }
 }

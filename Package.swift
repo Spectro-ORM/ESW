@@ -1,7 +1,7 @@
 // swift-tools-version: 6.3
 
-import PackageDescription
 import CompilerPluginSupport
+import PackageDescription
 
 let package = Package(
     name: "swift-esw",
@@ -24,6 +24,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
+        .package(url: "https://github.com/apple/swift-algorithms.git", from: "1.2.1"),
     ],
     targets: [
         // Runtime library — ESWValue + escape() + macro declarations.
@@ -36,6 +37,7 @@ let package = Package(
         .macro(
             name: "ESWMacros",
             dependencies: [
+                .product(name: "Algorithms", package: "swift-algorithms"),
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
                 "ESWCompilerLib",
@@ -44,7 +46,10 @@ let package = Package(
 
         // Tokenizer + code generator, testable library.
         .target(
-            name: "ESWCompilerLib"
+            name: "ESWCompilerLib",
+            dependencies: [
+                .product(name: "Algorithms", package: "swift-algorithms")
+            ]
         ),
 
         // Thin CLI wrapper around ESWCompilerLib.
