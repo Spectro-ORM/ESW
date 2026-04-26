@@ -111,43 +111,49 @@ public struct CodeGenerator {
         if emitSourceLocation(lines: &lines, node.metadata) { emittedLocation = true }
 
         let typeName = kebabToPascalCase(node.name)
+        let hasSlots = !node.namedSlots.isEmpty || !node.defaultSlot.isEmpty
 
-        // 1. Build argument list (attributes + named slots)
-        var argParts: [String] = []
-
-        // Attributes first
-        argParts.append(contentsOf: node.attributes.map { attr in
+        let attrArgs = node.attributes.map { attr -> String in
             let swiftKey = attr.key.split(separator: "-", omittingEmptySubsequences: false).joined(separator: "_")
             switch attr.value {
             case .none: return "\(swiftKey): true"
             case .string(let s): return "\(swiftKey): \(rawStringLiteral(s))"
             case .expression(let expr): return "\(swiftKey): \(expr)"
             }
-        })
-
-        // Named slots (alphabetical)
-        let sortedSlots = node.namedSlots.sorted { $0.name < $1.name }
-        for slot in sortedSlots {
-            let swiftKey = slot.name.split(separator: "-", omittingEmptySubsequences: false).joined(separator: "_")
-            argParts.append("\(swiftKey): {")
-            argParts.append("    var _buf = ESWBuffer()")
-            emitNodeBody(&lines, nodes: slot.nodes, bufferName: "_buf")
-            argParts.append("    return _buf.finalize()")
-            argParts.append("}()")
         }
 
-        // Content slot (last, if not empty)
-        if !node.defaultSlot.isEmpty {
-            argParts.append("content: {")
-            argParts.append("    var _buf = ESWBuffer()")
-            emitNodeBody(&lines, nodes: node.defaultSlot, bufferName: "_buf")
-            argParts.append("    return _buf.finalize()")
-            argParts.append("}()")
+        if !hasSlots {
+            let argList = attrArgs.joined(separator: ", ")
+            lines.append("    \(bufferName).appendUnsafe(\(typeName).render(\(argList)))")
+        } else {
+            lines.append("    \(bufferName).appendUnsafe(\(typeName).render(")
+
+            for (i, arg) in attrArgs.enumerated() {
+                let comma = (i < attrArgs.count - 1 || hasSlots) ? "," : ""
+                lines.append("        \(arg)\(comma)")
+            }
+
+            let sortedSlots = node.namedSlots.sorted { $0.name < $1.name }
+            for (i, slot) in sortedSlots.enumerated() {
+                let swiftKey = slot.name.split(separator: "-", omittingEmptySubsequences: false).joined(separator: "_")
+                let isLast = i == sortedSlots.count - 1 && node.defaultSlot.isEmpty
+                lines.append("        \(swiftKey): {")
+                lines.append("            var _buf = ESWBuffer()")
+                emitNodeBody(&lines, nodes: slot.nodes, bufferName: "_buf")
+                lines.append("            return _buf.finalize()")
+                lines.append("        }()\(isLast ? "" : ",")")
+            }
+
+            if !node.defaultSlot.isEmpty {
+                lines.append("        content: {")
+                lines.append("            var _buf = ESWBuffer()")
+                emitNodeBody(&lines, nodes: node.defaultSlot, bufferName: "_buf")
+                lines.append("            return _buf.finalize()")
+                lines.append("        }()")
+            }
+
+            lines.append("    ))")
         }
-
-        let finalArgList = argParts.joined(separator: ", ")
-
-        lines.append("    \(bufferName).appendUnsafe(\(typeName).render(\(finalArgList)))")
 
         return emittedLocation
     }
