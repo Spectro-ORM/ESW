@@ -19,10 +19,9 @@ public struct Connection {
     /// ```
     public func html(
         title: String,
-        layout: (Connection, String, String) -> Connection,
+        layout: (String, String) -> String,
         content: () -> String
     ) -> Connection {
-        let body = content()
-        return layout(self, title, body)
+        html(layout(title, content()))
     }
 }

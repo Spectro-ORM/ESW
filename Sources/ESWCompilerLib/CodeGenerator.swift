@@ -60,7 +60,9 @@ public struct CodeGenerator {
     }
 
     private func generateStringFunction(_ lines: inout [String]) {
-        let funcName = Naming.functionName(from: filename)
+        let funcName = Naming.isPartial(filename)
+            ? Naming.bufferFunctionName(from: filename)
+            : Naming.functionName(from: filename)
         let paramList = buildParamList()
         if paramList.isEmpty {
             lines.append("func \(funcName)() -> String {")

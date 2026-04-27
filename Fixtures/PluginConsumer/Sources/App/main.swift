@@ -19,27 +19,21 @@ let xss = _renderGreetingBuffer(name: "<script>alert('xss')</script>")
 assert(!xss.contains("<script>"), "Script tags must be escaped")
 assert(xss.contains("&lt;script&gt;"), "Script tags must be HTML-escaped")
 
-// --- Non-partial: conn function exists ---
+// --- Non-partial: String-returning function wrapped in conn.html() ---
 
 let conn = Connection()
-let helloResult = renderHello(conn: conn)
+let helloResult = conn.html(renderHello())
 assert(helloResult.body.contains("Hello, World!"), "hello.esw should render")
 
 // --- Layout with raw content ---
 
-let layoutResult = renderLayout(conn: conn, title: "Test", content: "<p>Body</p>")
-assert(layoutResult.body.contains("<title>Test</title>"), "Title should be escaped")
+let layoutResult = conn.html(renderLayout(title: "Test", content: "<p>Body</p>"))
+assert(layoutResult.body.contains("<title>Test</title>"), "Title should be in head")
 assert(layoutResult.body.contains("<p>Body</p>"), "Raw content should not be escaped")
-
-// --- Partial via conn function ---
-
-let greetConn = renderGreeting(conn: conn, name: "Tester")
-assert(greetConn.body.contains("Hello"), "Conn variant should work")
-assert(greetConn.body.contains("Tester"), "Conn variant should pass name")
 
 // --- Index page: default (no items) ---
 
-let indexDefault = renderIndex(conn: conn)
+let indexDefault = conn.html(renderIndex())
 assert(indexDefault.body.contains("<title>Welcome</title>"), "Default title should be Welcome")
 assert(indexDefault.body.contains("<h1>Welcome</h1>"), "H1 should show title")
 assert(indexDefault.body.contains("No items yet."), "Empty items should show placeholder")
@@ -47,7 +41,7 @@ assert(!indexDefault.body.contains("<ul>"), "No list when items are empty")
 
 // --- Index page: with items ---
 
-let indexWithItems = renderIndex(conn: conn, title: "Stuff", items: ["Alpha", "Beta"])
+let indexWithItems = conn.html(renderIndex(title: "Stuff", items: ["Alpha", "Beta"]))
 assert(indexWithItems.body.contains("<title>Stuff</title>"), "Custom title should appear")
 assert(indexWithItems.body.contains("<li>Alpha</li>"), "First item should render")
 assert(indexWithItems.body.contains("<li>Beta</li>"), "Second item should render")
@@ -55,7 +49,7 @@ assert(!indexWithItems.body.contains("No items yet."), "Placeholder hidden when 
 
 // --- Index page: HTML escaping in items ---
 
-let indexXSS = renderIndex(conn: conn, items: ["<img onerror=alert(1)>"])
+let indexXSS = conn.html(renderIndex(items: ["<img onerror=alert(1)>"]))
 assert(!indexXSS.body.contains("<img onerror"), "Item content must be escaped")
 assert(indexXSS.body.contains("&lt;img onerror"), "Angle brackets must be entities")
 

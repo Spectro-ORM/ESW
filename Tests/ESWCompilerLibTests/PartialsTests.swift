@@ -30,17 +30,15 @@ private func generate(
 @Suite("Partials")
 struct PartialsTests {
 
-    @Test func partialGeneratesStringFunction() throws {
+    @Test func partialGeneratesBufferFunction() throws {
         let output = try generate(
             "<%!\nvar user: User\n%>\n<div><%= user.name %></div>",
             filename: "_user_card.esw"
         )
-        // Single String-returning function (no more two-function shape)
-        #expect(output.contains("func renderUserCard("))
+        #expect(output.contains("func _renderUserCardBuffer("))
         #expect(output.contains("user: User"))
         #expect(output.contains(") -> String {"))
         #expect(output.contains("return _buf.finalize()"))
-        // No Connection-related output
         #expect(!output.contains("Connection"))
         #expect(!output.contains("conn.html"))
     }
@@ -57,11 +55,11 @@ struct PartialsTests {
             "<%!\nvar user: User\n%>\n<p><%= user.name %></p>",
             filename: "_card.esw"
         )
-        #expect(output.contains("func renderCard("))
+        #expect(output.contains("func _renderCardBuffer("))
         #expect(!output.contains("conn"))
     }
 
-    @Test func partialAndNonPartialSameShape() throws {
+    @Test func partialAndNonPartialDifferByName() throws {
         let partial = try generate(
             "<%!\nvar user: User\nvar showEmail: Bool = false\n%>\nhello",
             filename: "_info.esw"
@@ -70,7 +68,10 @@ struct PartialsTests {
             "<%!\nvar user: User\nvar showEmail: Bool = false\n%>\nhello",
             filename: "info.esw"
         )
-        // Both should produce the same signature shape
+        // Names differ
+        #expect(partial.contains("func _renderInfoBuffer("))
+        #expect(nonPartial.contains("func renderInfo("))
+        // Params and return type are identical
         #expect(partial.contains("user: User"))
         #expect(partial.contains("showEmail: Bool = false"))
         #expect(nonPartial.contains("user: User"))
@@ -81,7 +82,7 @@ struct PartialsTests {
 
     @Test func partialNoParams() throws {
         let output = try generate("<footer>Copyright</footer>", filename: "_footer.esw")
-        #expect(output.contains("func renderFooter() -> String {"))
+        #expect(output.contains("func _renderFooterBuffer() -> String {"))
         #expect(output.contains("return _buf.finalize()"))
     }
 }
