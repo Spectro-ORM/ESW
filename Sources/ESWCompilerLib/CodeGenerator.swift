@@ -43,10 +43,8 @@ public struct CodeGenerator {
         lines.append("// Source: \(sourceFile)")
         lines.append("")
 
-        // Always import ESW
         lines.append("import ESW")
 
-        // Detect and add framework-specific imports based on parameter types
         let requiredImports = detectRequiredImports(from: parameters)
         for importName in requiredImports.sorted() {
             lines.append("import \(importName)")
@@ -130,9 +128,8 @@ public struct CodeGenerator {
         } else {
             lines.append("    \(bufferName).appendUnsafe(\(typeName).render(")
 
-            for (i, arg) in attrArgs.enumerated() {
-                let comma = (i < attrArgs.count - 1 || hasSlots) ? "," : ""
-                lines.append("        \(arg)\(comma)")
+            for arg in attrArgs {
+                lines.append("        \(arg),")
             }
 
             let sortedSlots = node.namedSlots.sorted { $0.name < $1.name }
@@ -166,7 +163,7 @@ public struct CodeGenerator {
         switch token {
         case .text(let s, let meta):
             if !s.isEmpty {
-                // Only emit source location for single-line text to avoid breaking multiline string literals
+                // #sourceLocation() inside a multiline string literal is a syntax error
                 if !s.contains("\n") {
                     if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
                 }
@@ -230,16 +227,7 @@ public struct CodeGenerator {
     // MARK: - Private helpers
 
     private func detectRequiredImports(from parameters: [Parameter]) -> Set<String> {
-        var imports = Set<String>()
-        for param in parameters {
-            // Check type annotations for known framework types
-            if param.type.contains("Connection") {
-                imports.insert("Nexus")
-            }
-            // Add more framework type detections as needed
-            // For example: Peregrine, Hummingbird, Vapor, etc.
-        }
-        return imports
+        parameters.contains(where: { $0.type.contains("Connection") }) ? ["Nexus"] : []
     }
 
     private func rawStringHashes(_ s: String) -> String {
