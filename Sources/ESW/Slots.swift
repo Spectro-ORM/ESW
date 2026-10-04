@@ -1,0 +1,57 @@
+/// A typed slot entry. Attributes are evaluated by the caller; the body is
+/// evaluated only when the component renders it with an input value.
+public struct ESWSlot<Attributes, Input> {
+    public let attributes: Attributes
+    private let body: (Input) -> String
+
+    public init(attributes: Attributes, render: @escaping (Input) -> String) {
+        self.attributes = attributes
+        self.body = render
+    }
+
+    public func render(_ input: Input) -> String { body(input) }
+}
+
+public struct ESWEmptySlotAttributes: Sendable {
+    public init() {}
+}
+
+/// Keeps slot entries separate and in source order, including entries created
+/// by conditional branches or loops in a template.
+@resultBuilder
+public enum ESWSlotBuilder<Attributes, Input> {
+    public typealias Entry = ESWSlot<Attributes, Input>
+    public static func buildExpression(_ entry: Entry) -> [Entry] { [entry] }
+    public static func buildBlock(_ entries: [Entry]...) -> [Entry] { entries.flatMap { $0 } }
+    public static func buildOptional(_ entries: [Entry]?) -> [Entry] { entries ?? [] }
+    public static func buildEither(first entries: [Entry]) -> [Entry] { entries }
+    public static func buildEither(second entries: [Entry]) -> [Entry] { entries }
+    public static func buildArray(_ entries: [[Entry]]) -> [Entry] { entries.flatMap { $0 } }
+    public static func buildLimitedAvailability(_ entries: [Entry]) -> [Entry] { entries }
+}
+
+extension ESW {
+    public static func slots<Attributes, Input>(
+        @ESWSlotBuilder<Attributes, Input> _ content: () -> [ESWSlot<Attributes, Input>]
+    ) -> [ESWSlot<Attributes, Input>] {
+        content()
+    }
+}
+
+/// Slot bodies already escape dynamic text. The result can be embedded with
+/// `{renderSlot(entry, value)}` without escaping its HTML a second time.
+public func renderSlot<Attributes, Input>(_ slot: ESWSlot<Attributes, Input>, _ input: Input) -> ESWValue {
+    .safe(slot.render(input))
+}
+
+public func renderSlot<Attributes, Input>(_ slots: [ESWSlot<Attributes, Input>], _ input: Input) -> ESWValue {
+    .safe(slots.map { $0.render(input) }.joined())
+}
+
+public func renderSlot<Attributes>(_ slot: ESWSlot<Attributes, Void>) -> ESWValue {
+    renderSlot(slot, ())
+}
+
+public func renderSlot<Attributes>(_ slots: [ESWSlot<Attributes, Void>]) -> ESWValue {
+    renderSlot(slots, ())
+}

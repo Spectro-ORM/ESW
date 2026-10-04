@@ -1,0 +1,8 @@
+<%!
+var people: [Person]
+var showDetails: Bool = true
+%>
+<.person-table people={people}>
+  <:column label="Name" :let={person}><b>{person.name}</b></:column>
+  <:column label="Details" :if={showDetails} :let={person}>{person.name}</:column>
+</.person-table>

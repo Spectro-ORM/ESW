@@ -1,6 +1,7 @@
 // MARK: - ESW Compile-Time Rendering Macros
 
-/// Renders a `.esw` template file at compile time, returning the result as a `String`.
+/// Renders a `.esw` or `.heex` template file at compile time, returning a `String`.
+/// The file extension selects text or HTML-aware syntax.
 ///
 /// The template file is located by walking up the directory tree from the invoking
 /// source file, checking `Views/<name>` and `<name>` directly at each level.
@@ -52,4 +53,10 @@ public macro render(_ templatePath: String) -> String =
 /// ```
 @freestanding(expression)
 public macro esw(_ template: String) -> String =
+    #externalMacro(module: "ESWMacros", type: "InlineESWMacro")
+
+/// HTML-aware ESW: balanced tags, `{expression}`, dynamic attributes,
+/// and `:if` / `:for` directives using Swift expressions.
+@freestanding(expression)
+public macro heex(_ template: String) -> String =
     #externalMacro(module: "ESWMacros", type: "InlineESWMacro")

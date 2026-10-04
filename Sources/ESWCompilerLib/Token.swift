@@ -33,6 +33,8 @@ public enum Token: Equatable, Sendable {
     case code(String, metadata: Metadata)
     case comment(String, metadata: Metadata)
     case assigns(String, metadata: Metadata)
+    case htmlAttribute(name: String, expression: String, metadata: Metadata)
+    case htmlAttributes(expression: String, metadata: Metadata)
     /// A `<.tag-name attr="val" attr2={expr} />` or `<.tag-name>...</.tag-name>` component tag.
     case componentTag(
         name: String,
@@ -42,7 +44,7 @@ public enum Token: Equatable, Sendable {
     )
     case componentClose(name: String, metadata: Metadata)
     /// A `<:name>` slot opening tag.
-    case slotOpen(name: String, metadata: Metadata)
+    case slotOpen(name: String, attributes: [ComponentAttribute] = [], selfClosing: Bool = false, metadata: Metadata)
     /// A `</:name>` slot closing tag.
     case slotClose(name: String, metadata: Metadata)
 }

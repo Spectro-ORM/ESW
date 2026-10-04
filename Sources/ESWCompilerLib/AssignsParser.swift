@@ -1,3 +1,6 @@
+import SwiftParser
+import SwiftSyntax
+
 public struct Parameter: Equatable, Sendable {
     public let name: String
     public let type: String
@@ -10,131 +13,117 @@ public struct Parameter: Equatable, Sendable {
     }
 }
 
+/// Declarations shared by generated functions and inline expansion.
+public struct TemplateDeclarations: Equatable, Sendable {
+    public let parameters: [Parameter]
+    public let imports: [String]
+}
+
 public enum AssignsParser {
-
-    /// Validates that the assigns token (if any) is the first non-text token, then
-    /// parses its content into parameters.
     public static func parse(tokens: [Token], file: String) throws -> [Parameter] {
-        var foundPriorContent = false
-        var assignsContent: String?
-        var assignsLine = 1
+        try declarations(tokens: tokens, file: file).parameters
+    }
 
+    public static func declarations(tokens: [Token], file: String) throws -> TemplateDeclarations {
+        var foundPriorContent = false
+        var header: (String, Metadata)?
         for token in tokens {
             switch token {
             case .assigns(let content, let metadata):
-                if foundPriorContent || assignsContent != nil {
+                guard !foundPriorContent, header == nil else {
                     throw ESWAssignsError.assignsNotFirst(file: file, line: metadata.line)
                 }
-                assignsContent = content
-                assignsLine = metadata.line
-            case .text(let s, _):
-                // Only whitespace text before assigns is allowed
-                if !s.allSatisfy({ $0 == " " || $0 == "\t" || $0 == "\n" || $0 == "\r" }) {
-                    foundPriorContent = true
-                }
+                header = (content, metadata)
+            case .text(let text, _):
+                if !text.allSatisfy(\.isWhitespace) { foundPriorContent = true }
+            case .comment:
+                break
             default:
                 foundPriorContent = true
             }
         }
-
-        guard let content = assignsContent else {
-            return []
+        guard let (source, metadata) = header else {
+            return TemplateDeclarations(parameters: [], imports: [])
         }
-
-        return try parseDeclarations(content, file: file, startLine: assignsLine)
-    }
-
-    /// Parses the raw assigns content string into Parameter values.
-    /// Each non-blank line should be `var name: Type` or `var name: Type = default`.
-    private static func parseDeclarations(_ content: String, file: String, startLine: Int) throws -> [Parameter] {
+        let tree = Parser.parse(source: escapingLegacyParameterNames(source))
+        let locations = SourceLocationConverter(fileName: file, tree: tree)
         var parameters: [Parameter] = []
-        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
-
-        for (offset, line) in lines.enumerated() {
-            let trimmed = line.trimmingWhitespaceChars()
-            if trimmed.isEmpty { continue }
-
-            guard let param = parseDeclaration(String(trimmed)) else {
-                throw ESWAssignsError.invalidDeclaration(
-                    file: file,
-                    line: startLine + offset,
-                    text: String(trimmed)
-                )
+        var imports: [String] = []
+        for statement in tree.statements {
+            let line = metadata.line + locations.location(for: statement.positionAfterSkippingLeadingTrivia).line - 1
+            func invalid(_ text: String) -> ESWAssignsError {
+                .invalidDeclaration(file: file, line: line, text: text)
             }
-            parameters.append(param)
+            guard !statement.hasError else {
+                throw invalid(statement.trimmedDescription)
+            }
+            if let declaration = statement.item.as(ImportDeclSyntax.self) {
+                guard declaration.attributes.isEmpty, declaration.modifiers.isEmpty else {
+                    throw invalid("template imports cannot have attributes or access modifiers")
+                }
+                let text = declaration.trimmedDescription
+                if !imports.contains(text) { imports.append(text) }
+                continue
+            }
+            guard let declaration = statement.item.as(VariableDeclSyntax.self),
+                  declaration.attributes.isEmpty, declaration.modifiers.isEmpty else {
+                throw invalid("expected a typed var/let parameter or import: " + statement.trimmedDescription)
+            }
+            for binding in declaration.bindings {
+                guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+                      let annotation = binding.typeAnnotation,
+                      binding.accessorBlock == nil else {
+                    throw invalid("parameters need a name and explicit type: " + binding.trimmedDescription)
+                }
+                let name = String(pattern.identifier.text.filter { $0 != "`" })
+                guard name != "_", !parameters.contains(where: { $0.name == name }) else {
+                    throw invalid("duplicate or unnamed parameter '\(name)'")
+                }
+                parameters.append(Parameter(name: name, type: annotation.type.trimmedDescription,
+                                            defaultValue: binding.initializer?.value.trimmedDescription))
+            }
         }
-
-        return parameters
+        return TemplateDeclarations(parameters: parameters, imports: imports)
     }
 
-    /// Parses a single `var name: Type` or `var name: Type = default` declaration.
-    private static func parseDeclaration(_ line: String) -> Parameter? {
-        var remaining = line[...]
-
-        // Must start with "var "
-        guard remaining.hasPrefix("var ") else { return nil }
-        remaining = remaining.dropFirst(4)
-
-        // Skip whitespace
-        remaining = remaining.drop { $0 == " " || $0 == "\t" }
-
-        // Read the name (up to `:`)
-        guard let colonIndex = remaining.firstIndex(of: ":") else { return nil }
-        let name = remaining[..<colonIndex].trimmingWhitespaceChars()
-        guard !name.isEmpty else { return nil }
-
-        remaining = remaining[remaining.index(after: colonIndex)...]
-        remaining = remaining.drop { $0 == " " || $0 == "\t" }
-
-        // Check for default value
-        if let equalsIndex = findTopLevelEquals(in: remaining) {
-            let type = remaining[..<equalsIndex].trimmingWhitespaceChars()
-            let defaultValue = remaining[remaining.index(after: equalsIndex)...].trimmingWhitespaceChars()
-            guard !type.isEmpty, !defaultValue.isEmpty else { return nil }
-            return Parameter(name: String(name), type: String(type), defaultValue: String(defaultValue))
-        } else {
-            let type = String(remaining).trimmingWhitespaceChars()
-            guard !type.isEmpty else { return nil }
-            return Parameter(name: String(name), type: String(type))
-        }
-    }
-
-    /// Finds the `=` that separates type from default value, respecting bracket nesting.
-    /// e.g. in `[String: Int] = [:]`, the `:` in `[String: Int]` shouldn't confuse us,
-    /// and the `=` after the `]` is what we want.
-    private static func findTopLevelEquals(in str: Substring) -> Substring.Index? {
+    /// Earlier ESW front matter allowed keyword parameter names without
+    /// backticks. Keep that spelling at the declaration boundary, while leaving
+    /// default expressions, nested declarations, strings and comments intact.
+    private static func escapingLegacyParameterNames(_ source: String) -> String {
+        var result = ""
+        var cursor = source.startIndex
         var depth = 0
-        for i in str.indices {
-            switch str[i] {
-            case "[", "(", "<":
-                depth += 1
-            case "]", ")", ">":
-                depth -= 1
-            case "=" where depth == 0:
-                return i
-            default:
-                break
+        while cursor < source.endIndex {
+            if let end = SwiftLexicalScanner.opaqueEnd(in: source, at: cursor) {
+                result += source[cursor..<end]
+                cursor = end
+                continue
             }
-        }
-        return nil
-    }
-}
-
-extension StringProtocol {
-    func trimmingWhitespaceChars() -> String {
-        var start = startIndex
-        while start < endIndex && (self[start] == " " || self[start] == "\t") {
-            start = index(after: start)
-        }
-        var end = endIndex
-        while end > start {
-            let prev = index(before: end)
-            if self[prev] == " " || self[prev] == "\t" {
-                end = prev
-            } else {
-                break
+            let tail = source[cursor...]
+            if depth == 0, tail.hasPrefix("var ") || tail.hasPrefix("let ") {
+                let start = source.index(cursor, offsetBy: 4)
+                var nameStart = start
+                while nameStart < source.endIndex, source[nameStart].isWhitespace { nameStart = source.index(after: nameStart) }
+                var nameEnd = nameStart
+                while nameEnd < source.endIndex, source[nameEnd].isLetter || source[nameEnd].isNumber || source[nameEnd] == "_" {
+                    nameEnd = source.index(after: nameEnd)
+                }
+                let name = String(source[nameStart..<nameEnd])
+                var afterName = nameEnd
+                while afterName < source.endIndex, source[afterName].isWhitespace { afterName = source.index(after: afterName) }
+                if afterName < source.endIndex, source[afterName] == ":", CodeGenerator.escapedParamName(name) != name {
+                    result += source[cursor..<nameStart]
+                    result += CodeGenerator.escapedParamName(name)
+                    cursor = nameEnd
+                    continue
+                }
             }
+            let character = source[cursor]
+            if character == "{" || character == "(" || character == "[" { depth += 1 }
+            if character == "}" || character == ")" || character == "]" { depth = max(0, depth - 1) }
+            result.append(character)
+            cursor = source.index(after: cursor)
         }
-        return String(self[start..<end])
+        return result
     }
 }

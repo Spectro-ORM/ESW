@@ -33,16 +33,18 @@
 /// struct Card: ESWComponent {
 ///     static func render(
 ///         title: String,              // attribute (source order)
-///         header: String,             // named slot (alphabetical)
 ///         footer: String = "",        // named slot (alphabetical, optional)
+///         header: String = "",        // named slot (alphabetical, optional)
 ///         content: String = ""        // default slot (always last, optional)
 ///     ) -> String { ... }
 /// }
 /// ```
-public protocol ESWComponent {
-    /// Renders the component to an HTML string.
-    /// The compiler calls the concrete type's `render(...)` method directly,
-    /// so the signature is determined by the implementing type's static method —
-    /// this protocol does not mandate a specific parameter list.
-    static func render() -> String
-}
+/// Marker protocol: Swift checks the concrete `static render(...) -> String`
+/// call, including required attributes, argument types, and slot parameters.
+///
+/// In HTML mode, `:let={value}` supplies default content as a closure. Named
+/// slots with attributes, directives, bindings, or repeated entries become
+/// arrays of ``ESWSlot``. A simple, single named slot remains a String.
+/// Qualified tags such as `<UI.card>` call `UI.card(...)` directly and do not
+/// require a marker conformance.
+public protocol ESWComponent {}

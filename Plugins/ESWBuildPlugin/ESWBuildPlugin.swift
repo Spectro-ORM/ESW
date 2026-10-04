@@ -1,39 +1,22 @@
-import Foundation
 import PackagePlugin
 
 @main
 struct ESWBuildPlugin: BuildToolPlugin {
-    func createBuildCommands(
-        context: PluginContext,
-        target: Target
-    ) throws -> [Command] {
+    func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {
         guard let target = target as? SourceModuleTarget else { return [] }
-
-        let eswFiles = target.sourceFiles.filter {
-            $0.type == .unknown && $0.url.pathExtension == "esw"
-        }
+        let templates = target.sourceFiles.filter {
+            ["esw", "heex"].contains($0.url.pathExtension)
+        }.map(\.url).sorted { $0.path < $1.path }
+        guard !templates.isEmpty else { return [] }
         let tool = try context.tool(named: "ESWCompilerCLI")
-
-        return eswFiles.map { file in
-            // Strip all extensions: "layout.html.esw" → "layout"
-            var stem = file.url.deletingPathExtension().lastPathComponent
-            if let dotIndex = stem.firstIndex(of: ".") {
-                stem = String(stem[..<dotIndex])
-            }
-            let outputName = "render_\(stem).swift"
-            let output = context.pluginWorkDirectoryURL.appending(path: outputName)
-
-            return .buildCommand(
-                displayName: "Compiling \(file.url.lastPathComponent)",
-                executable: tool.url,
-                arguments: [
-                    file.url.path(percentEncoded: false),
-                    "--output", output.path(percentEncoded: false),
-                    "--source-location"
-                ],
-                inputFiles: [file.url],
-                outputFiles: [output]
-            )
-        }
+        let output = context.pluginWorkDirectoryURL.appending(path: "ESWTemplates.swift")
+        return [.buildCommand(
+            displayName: "Compiling ESW templates for \(target.name)",
+            executable: tool.url,
+            arguments: ["--batch", "--root", target.directoryURL.path,
+                        "--output", output.path, "--source-location"] + templates.map(\.path),
+            inputFiles: templates,
+            outputFiles: [output]
+        )]
     }
 }

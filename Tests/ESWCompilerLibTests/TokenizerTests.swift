@@ -49,7 +49,7 @@ struct TokenizerTests {
 
     @Test func assignsBlock() throws {
         let tokens = try tokenize("<%!\nvar user: User\n%>")
-        #expect(tokens == [.assigns("var user: User", metadata: Metadata(file: "test.esw", line: 1, column: 1))])
+        #expect(tokens == [.assigns("\nvar user: User\n", metadata: Metadata(file: "test.esw", line: 1, column: 1))])
     }
 
     // MARK: - Delimiter escape
@@ -118,7 +118,7 @@ struct TokenizerTests {
     @Test func assignsMultipleVars() throws {
         let tokens = try tokenize("<%!\nvar user: User\nvar posts: [Post]\n%>")
         #expect(tokens == [
-            .assigns("var user: User\nvar posts: [Post]", metadata: Metadata(file: "test.esw", line: 1, column: 1)),
+            .assigns("\nvar user: User\nvar posts: [Post]\n", metadata: Metadata(file: "test.esw", line: 1, column: 1)),
         ])
     }
 
@@ -176,7 +176,7 @@ struct TokenizerTests {
     @Test func slotOpen() throws {
         let tokens = try tokenize("<:header>")
         #expect(tokens.count == 1)
-        guard case .slotOpen(let name, _) = tokens[0] else {
+        guard case .slotOpen(let name, _, _, _) = tokens[0] else {
             Issue.record("Expected slotOpen")
             return
         }
@@ -196,7 +196,7 @@ struct TokenizerTests {
     @Test func slotWithHyphenatedName() throws {
         let tokens = try tokenize("<:top-bar>content</:top-bar>")
         #expect(tokens.count == 3)
-        guard case .slotOpen(let name, _) = tokens[0] else {
+        guard case .slotOpen(let name, _, _, _) = tokens[0] else {
             Issue.record("Expected slotOpen")
             return
         }
@@ -221,7 +221,7 @@ struct TokenizerTests {
             return
         }
         #expect(name == "card")
-        guard case .slotOpen(let slotName, _) = tokens[1] else {
+        guard case .slotOpen(let slotName, _, _, _) = tokens[1] else {
             Issue.record("Expected slotOpen")
             return
         }

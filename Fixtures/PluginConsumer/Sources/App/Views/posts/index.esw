@@ -1,0 +1,4 @@
+<%!
+var posts: [String]
+%>
+<ul><% for post in posts { %><li><%= post %></li><% } %></ul>

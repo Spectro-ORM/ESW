@@ -24,7 +24,6 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-        .package(url: "https://github.com/apple/swift-algorithms.git", from: "1.2.1"),
     ],
     targets: [
         // Runtime library — ESWValue + escape() + macro declarations.
@@ -37,7 +36,7 @@ let package = Package(
         .macro(
             name: "ESWMacros",
             dependencies: [
-                .product(name: "Algorithms", package: "swift-algorithms"),
+                .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
                 "ESWCompilerLib",
@@ -48,7 +47,8 @@ let package = Package(
         .target(
             name: "ESWCompilerLib",
             dependencies: [
-                .product(name: "Algorithms", package: "swift-algorithms")
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]
         ),
 

@@ -1,9 +1,11 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
+import SwiftParser
+import ESWCompilerLib
 
-// MARK: - #esw
+// MARK: - #esw and #heex
 
-/// Implements `#esw("...")`.
+/// Implements `#esw("...")` and `#heex("...")`.
 ///
 /// Parses the template string literal at compile time and expands to the same
 /// immediately-invoked closure as `#render`, without reading any file.
@@ -16,27 +18,28 @@ public struct InlineESWMacro: ExpressionMacro {
         of node: some FreestandingMacroExpansionSyntax,
         in context: some MacroExpansionContext
     ) throws -> ExprSyntax {
+        let macroName = "#" + node.macroName.text
+        let syntax: TemplateSyntax = node.macroName.text == "heex" ? .heex : .esw
         guard let firstArg = node.arguments.first else {
-            throw ESWMacroError("#esw requires a template string as its first argument")
+            throw ESWMacroError("\(macroName) requires a template string as its first argument")
         }
 
         guard let lit = firstArg.expression.as(StringLiteralExprSyntax.self) else {
-            throw ESWMacroError("#esw: the template must be a string literal, not a variable")
+            throw ESWMacroError("\(macroName): the template must be a string literal, not a variable")
         }
 
         // Reject Swift string interpolations inside the template
-        var source = ""
         for segment in lit.segments {
-            if let text = segment.as(StringSegmentSyntax.self) {
-                source += text.content.text
-            } else if segment.as(ExpressionSegmentSyntax.self) != nil {
+            if segment.as(ExpressionSegmentSyntax.self) != nil {
                 throw ESWMacroError(
-                    "#esw: Swift string interpolation (\\(...)) is not allowed inside templates. " +
-                    "Use ESW output tags (<%= ... %>) instead."
+                    "\(macroName): Swift string interpolation (\\(...)) is not allowed inside templates. " +
+                    (syntax == .heex ? "Use {expression} instead." : "Use ESW output tags (<%= ... %>) instead.")
                 )
             }
         }
-
-        return try RenderMacro.expand(source: source, file: "<inline>")
+        guard let source = lit.representedLiteralValue else {
+            throw ESWMacroError("Invalid template string literal")
+        }
+        return try RenderMacro.expand(source: source, file: "<inline>", syntax: syntax)
     }
 }

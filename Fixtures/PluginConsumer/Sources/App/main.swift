@@ -3,9 +3,9 @@ import Nexus
 
 // --- Partial: buffer function exists and is callable ---
 
-let greeting = _renderGreetingBuffer(name: "World")
-assert(greeting.contains("Hello"), "Default greeting should be Hello")
-assert(greeting.contains("World"), "Name should appear in output")
+let renderedGreeting = _renderGreetingBuffer(name: "World")
+assert(renderedGreeting.contains("Hello"), "Default greeting should be Hello")
+assert(renderedGreeting.contains("World"), "Name should appear in output")
 
 // --- Default parameter works ---
 
@@ -19,27 +19,21 @@ let xss = _renderGreetingBuffer(name: "<script>alert('xss')</script>")
 assert(!xss.contains("<script>"), "Script tags must be escaped")
 assert(xss.contains("&lt;script&gt;"), "Script tags must be HTML-escaped")
 
-// --- Non-partial: conn function exists ---
+// --- Non-partial: String-returning function wrapped in conn.html() ---
 
 let conn = Connection()
-let helloResult = renderHello(conn: conn)
+let helloResult = conn.html(renderHello())
 assert(helloResult.body.contains("Hello, World!"), "hello.esw should render")
 
 // --- Layout with raw content ---
 
-let layoutResult = renderLayout(conn: conn, title: "Test", content: "<p>Body</p>")
-assert(layoutResult.body.contains("<title>Test</title>"), "Title should be escaped")
+let layoutResult = conn.html(renderLayout(title: "Test", content: "<p>Body</p>"))
+assert(layoutResult.body.contains("<title>Test</title>"), "Title should be in head")
 assert(layoutResult.body.contains("<p>Body</p>"), "Raw content should not be escaped")
-
-// --- Partial via conn function ---
-
-let greetConn = renderGreeting(conn: conn, name: "Tester")
-assert(greetConn.body.contains("Hello"), "Conn variant should work")
-assert(greetConn.body.contains("Tester"), "Conn variant should pass name")
 
 // --- Index page: default (no items) ---
 
-let indexDefault = renderIndex(conn: conn)
+let indexDefault = conn.html(renderIndex())
 assert(indexDefault.body.contains("<title>Welcome</title>"), "Default title should be Welcome")
 assert(indexDefault.body.contains("<h1>Welcome</h1>"), "H1 should show title")
 assert(indexDefault.body.contains("No items yet."), "Empty items should show placeholder")
@@ -47,7 +41,7 @@ assert(!indexDefault.body.contains("<ul>"), "No list when items are empty")
 
 // --- Index page: with items ---
 
-let indexWithItems = renderIndex(conn: conn, title: "Stuff", items: ["Alpha", "Beta"])
+let indexWithItems = conn.html(renderIndex(title: "Stuff", items: ["Alpha", "Beta"]))
 assert(indexWithItems.body.contains("<title>Stuff</title>"), "Custom title should appear")
 assert(indexWithItems.body.contains("<li>Alpha</li>"), "First item should render")
 assert(indexWithItems.body.contains("<li>Beta</li>"), "Second item should render")
@@ -55,7 +49,7 @@ assert(!indexWithItems.body.contains("No items yet."), "Placeholder hidden when 
 
 // --- Index page: HTML escaping in items ---
 
-let indexXSS = renderIndex(conn: conn, items: ["<img onerror=alert(1)>"])
+let indexXSS = conn.html(renderIndex(items: ["<img onerror=alert(1)>"]))
 assert(!indexXSS.body.contains("<img onerror"), "Item content must be escaped")
 assert(indexXSS.body.contains("&lt;img onerror"), "Angle brackets must be entities")
 
@@ -85,4 +79,29 @@ assert(headHTML.contains("app-abc123.css"), "assetPath should resolve to fingerp
 assert(headHTML.contains("<title>Assets</title>"), "Head partial should include title")
 assert(!headHTML.contains("\"app.css\""), "Original filename should be replaced by manifest lookup")
 
-print("All fixture assertions passed.")
+// HTML-aware templates compile through the same build plugin.
+let tasks = renderTasks(items: ["<swift>"], counts: ["<swift>": 2])
+assert(tasks.contains("<li data-count=\"2\">&lt;swift&gt;</li>"))
+assert(!renderTasks(items: [], show: false).contains("<section"))
+assert(renderTasks(items: []).contains("class=\"tasks empty\""))
+assert(renderGreeting(name: "World") == _renderGreetingBuffer(name: "World"))
+
+// File macros and build-plugin functions use the same compiler pipeline.
+let name = "<Macro>"
+let greeting = "Hello"
+assert(#render("_greeting.esw") == _renderGreetingBuffer(name: name))
+let items = ["<swift>"]
+let counts = ["<swift>": 2]
+let show = true
+assert(#render("tasks.heex") == tasks)
+let usersPage = renderUsersIndex(users: ["<Ada>"])
+assert(usersPage.contains("<h1>User directory</h1><time>0</time><p>&lt;Ada&gt;</p>"))
+assert(renderPostsIndex(posts: ["<post>"]).contains("<li>&lt;post&gt;</li>"))
+let table = renderUsersTable(people: [Person(name: "<Ada>")], showDetails: false)
+assert(table.contains("<th>Name</th>"))
+assert(!table.contains("Details"))
+assert(table.contains("<td><b>&lt;Ada&gt;</b></td>"))
+if let marker = CommandLine.arguments.dropFirst().first {
+    assert(renderPostsIndex(posts: []).contains(marker), "A template-only edit must update the compiled renderer")
+}
+print("All ESW, HEEx, macro, namespaced template, and typed slot fixture assertions passed.")

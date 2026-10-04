@@ -1,0 +1,10 @@
+<%!
+import Foundation
+var users: [String]
+var title: String = [
+    "User",
+    "directory"
+].joined(separator: " ")
+var date: Date = Date(timeIntervalSince1970: 0)
+%>
+<section><h1>{title}</h1><time>{Int(date.timeIntervalSince1970)}</time><p :for={user in users}>{user}</p></section>

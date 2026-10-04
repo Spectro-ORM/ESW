@@ -1,5 +1,6 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
+import SwiftParser
 import ESWCompilerLib
 import Foundation
 
@@ -58,29 +59,13 @@ public struct RenderMacro: ExpressionMacro {
         } catch {
             throw ESWMacroError("Cannot read template '\(templatePath)': \(error.localizedDescription)")
         }
-        return try expand(source: source, file: resolvedPath)
+        return try expand(source: source, file: resolvedPath, syntax: resolvedPath.hasSuffix(".heex") ? .heex : .esw)
     }
 
     // MARK: - Shared expansion (reused by InlineESWMacro)
 
-    static func expand(source: String, file: String) throws -> ExprSyntax {
-        var tokenizer = Tokenizer(source: source, file: file)
-        let rawTokens = try tokenizer.tokenize()
-        let trimmedTokens = WhitespaceTrimmer.trim(rawTokens)
-        let parameters = try AssignsParser.parse(tokens: trimmedTokens, file: file)
-        let bodyTokens = trimmedTokens.filter {
-            if case .assigns = $0 { return false }
-            return true
-        }
-        let renderNodes = try ComponentResolver.resolve(bodyTokens)
-        let generator = CodeGenerator(
-            renderNodes: renderNodes,
-            parameters: parameters,
-            sourceFile: file,
-            filename: file,
-            emitSourceLocations: false
-        )
-        let expression = generator.generateExpression()
+    static func expand(source: String, file: String, syntax: TemplateSyntax = .esw) throws -> ExprSyntax {
+        let expression = try compileExpression(source: source, sourceFile: file, syntax: syntax)
         return "\(raw: expression)"
     }
 
@@ -90,9 +75,10 @@ public struct RenderMacro: ExpressionMacro {
         guard let lit = expr.as(StringLiteralExprSyntax.self) else {
             throw ESWMacroError("The \(hint) must be a string literal")
         }
-        return lit.segments.compactMap {
-            $0.as(StringSegmentSyntax.self)?.content.text
-        }.joined()
+        guard let value = lit.representedLiteralValue else {
+            throw ESWMacroError("The \(hint) must be a literal without Swift interpolation")
+        }
+        return value
     }
 
     private static func sourceFile(
@@ -105,9 +91,10 @@ public struct RenderMacro: ExpressionMacro {
         else {
             throw ESWMacroError("Cannot determine the source file location for #render")
         }
-        return lit.segments.compactMap {
-            $0.as(StringSegmentSyntax.self)?.content.text
-        }.joined()
+        guard let path = lit.representedLiteralValue else {
+            throw ESWMacroError("Cannot decode the source file location for #render")
+        }
+        return path
     }
 
     /// Resolves a template name by walking up from the invoking source file,

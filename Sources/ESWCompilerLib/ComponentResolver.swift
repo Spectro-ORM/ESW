@@ -1,186 +1,96 @@
-import ESWCompilerLib
-import Algorithms
-
+/// Resolves components and slots with one cursor. Nested components own their
+/// slots; siblings and trailing text remain in their enclosing scope.
 public struct ComponentResolver {
-    public enum ResolverError: Error, Equatable {
-        case unterminatedComponent(file: String, line: Int, column: Int)
-        case unmatchedComponentClose(file: String, line: Int, column: Int)
-        case unterminatedSlot(file: String, line: Int, column: Int)
-        case unmatchedSlotClose(file: String, line: Int, column: Int)
-        case duplicateSlot(name: String, file: String, line: Int)
-        case slotOutsideComponent(file: String, line: Int, column: Int)
-    }
+    public typealias ResolverError = ESWComponentError
 
     public static func resolve(_ tokens: [Token]) throws -> [RenderNode] {
+        var parser = Parser(tokens: tokens)
         var nodes: [RenderNode] = []
-        var index = 0
-
-        while index < tokens.count {
-            let token = tokens[index]
-                        switch token {
-            case .componentTag(let name, let attributes, let selfClosing, let metadata):
-                if selfClosing {
-                    nodes.append(.token(token))
-                    index += 1
-                } else {
-                    // Start of a non-self-closing component
-                    let (componentNode, nextIndex) = try resolveComponent(tokens, startIndex: index)
-                    nodes.append(.component(componentNode))
-                    index = nextIndex
-                }
-            case .slotOpen, .slotClose:
-                // These should be handled inside resolveComponent
-                // If they appear here, they are outside a component
-                if case .slotOpen(_, let meta) = token {
-                    throw ResolverError.slotOutsideComponent(file: meta.file, line: meta.line, column: meta.column)
-                } else if case .slotClose(_, let meta) = token {
-                    throw ResolverError.slotOutsideComponent(file: meta.file, line: meta.line, column: meta.column)
-                }
-                index += 1
-            case .componentClose(let name, let meta):
-                // Unmatched component close (no corresponding open)
-                throw ResolverError.unmatchedComponentClose(file: meta.file, line: meta.line, column: meta.column)
-            default:
-                nodes.append(.token(token))
-                index += 1
-            }
+        while parser.index < tokens.count {
+            nodes.append(try parser.node())
         }
         return nodes
     }
 
-    private static func resolveComponent(_ tokens: [Token], startIndex: Int) throws -> (ComponentNode, Int) {
-        guard case let .componentTag(name, attributes, _, metadata) = tokens[startIndex] else {
-            fatalError("Expected componentTag at \(startIndex)")
-        }
+    private struct Parser {
+        let tokens: [Token]
+        var index = 0
 
-        var innerTokens: [Token] = []
-        var depth = 1
-        var currentIndex = startIndex + 1
-        var foundMatch = false
-
-        while currentIndex < tokens.count {
-            let token = tokens[currentIndex]
+        mutating func node() throws -> RenderNode {
+            let token = tokens[index]
+            index += 1
             switch token {
-            case .componentTag(_, _, let selfClosing, _):
-                if selfClosing {
-                    innerTokens.append(token)
-                } else {
-                    depth += 1
-                    innerTokens.append(token)
-                }
-            case .componentClose(let closeName, _):
-                if closeName == name {
-                    depth -= 1
-                    if depth == 0 {
-                        foundMatch = true
-                        currentIndex += 1
-                        break
-                    }
-                } else {
-                    // It's a close tag for a nested component
-                    depth -= 1
-                    if depth == 0 {
-                        // Found a close tag that makes depth 0, but name doesn't match.
-                        // This means we have an unmatched component close.
-                        throw ResolverError.unmatchedComponentClose(file: metadata.file, line: metadata.line, column: metadata.column)
-                    }
-                }
-                innerTokens.append(token)
-            case .slotOpen, .slotClose:
-                // Slot tags are content within the component, don't affect depth
-                innerTokens.append(token)
+            case .componentTag(let name, let attributes, false, let metadata):
+                return .component(try component(name: name, attributes: attributes, metadata: metadata))
+            case .componentClose(_, let meta):
+                throw ResolverError.unmatchedComponentClose(file: meta.file, line: meta.line, column: meta.column)
+            case .slotOpen(_, _, _, let meta), .slotClose(_, let meta):
+                throw ResolverError.slotOutsideComponent(file: meta.file, line: meta.line, column: meta.column)
             default:
-                innerTokens.append(token)
+                return .token(token)
             }
-            currentIndex += 1
         }
 
-        if !foundMatch {
+        mutating func component(name: String, attributes: [ComponentAttribute], metadata: Metadata) throws -> ComponentNode {
+            var slots: [Slot] = []
+            var content: [RenderNode] = []
+            while index < tokens.count {
+                switch tokens[index] {
+                case .componentClose(let closeName, let meta):
+                    guard closeName == name else {
+                        throw ResolverError.unmatchedComponentClose(file: meta.file, line: meta.line, column: meta.column)
+                    }
+                    index += 1
+                    if !slots.isEmpty, content.allSatisfy(Self.isWhitespace) { content = [] }
+                    let slotKeys = Set(slots.map { $0.name.replacingHyphens() })
+                    for attribute in attributes {
+                        if slotKeys.contains(attribute.key.replacingHyphens()) || (attribute.key == "content" && !content.isEmpty) {
+                            throw ESWHTMLDiagnostic(metadata: metadata, message: "'\(attribute.key)' is supplied as both an attribute and a content slot")
+                        }
+                    }
+                    if TemplateValidation.binding(in: attributes) != nil, content.isEmpty {
+                        throw ESWHTMLDiagnostic(metadata: metadata, message: ":let requires default content; put :let on the named slot to bind its input")
+                    }
+                    return ComponentNode(name: name, attributes: attributes, namedSlots: slots,
+                                         defaultSlot: content, metadata: metadata)
+                case .slotOpen(let slotName, let attributes, let selfClosing, let meta):
+                    index += 1
+                    let nodes = selfClosing ? [] : try slot(name: slotName, metadata: meta)
+                    slots.append(Slot(name: slotName, nodes: nodes, attributes: attributes, metadata: meta))
+                case .slotClose(_, let meta):
+                    throw ResolverError.unmatchedSlotClose(file: meta.file, line: meta.line, column: meta.column)
+                default:
+                    content.append(try node())
+                }
+            }
             throw ResolverError.unterminatedComponent(file: metadata.file, line: metadata.line, column: metadata.column)
         }
 
-        // Now we have innerTokens. Split them into namedSlots and defaultSlot.
-        let (namedSlots, defaultSlot) = try splitSlots(innerTokens)
-
-        // Recursively resolve each region
-        let resolvedNamedSlots = try namedSlots.map { (name, nodes) in
-            Slot(name: name, nodes: try resolve(nodes))
-        }
-        let resolvedDefaultSlot = try resolve(defaultSlot)
-
-        let componentNode = ComponentNode(
-            name: name,
-            attributes: attributes,
-            namedSlots: resolvedNamedSlots,
-            defaultSlot: resolvedDefaultSlot,
-            metadata: metadata
-        )
-
-        return (componentNode, currentIndex)
-    }
-
-    private static func splitSlots(_ tokens: [Token]) throws -> (namedSlots: [(name: String, nodes: [Token])], defaultSlot: [Token]) {
-        var namedSlots: [(name: String, nodes: [Token])] = []
-        var defaultSlot: [Token] = []
-
-        var i = 0
-        while i < tokens.count {
-            let token = tokens[i]
-            switch token {
-            case .slotOpen(let name, let meta):
-                // Check for duplicate slot
-                if namedSlots.contains(where: { $0.name == name }) {
-                    throw ResolverError.duplicateSlot(name: name, file: meta.file, line: meta.line)
-                }
-
-                // Find matching slotClose
-                var slotTokens: [Token] = []
-                var slotDepth = 1
-                var j = i + 1
-                var foundClose = false
-
-                slotSearchLoop: while j < tokens.count {
-                    let slotToken = tokens[j]
-                    switch slotToken {
-                    case .slotOpen:
-                        slotDepth += 1
-                        slotTokens.append(slotToken)
-                    case .slotClose(let closeName, _):
-                        if closeName == name {
-                            slotDepth -= 1
-                            if slotDepth == 0 {
-                                foundClose = true
-                                j += 1
-                                break slotSearchLoop
-                            }
-                        }
-                        // Different slot name - it's content within this slot
-                        slotTokens.append(slotToken)
-                    default:
-                        slotTokens.append(slotToken)
-                    }
-                    j += 1
-                }
-
-                if !foundClose {
-                    // If we didn't find a matching close, it might be an unterminated slot
-                    // But we need the metadata from the slotOpen
-                    throw ResolverError.unterminatedSlot(file: meta.file, line: meta.line, column: meta.column)
-                }
-
-                namedSlots.append((name: name, nodes: slotTokens))
-                i = j
-
-            case .slotClose(_, let meta):
-                // A slotClose without a preceding slotOpen
-                throw ResolverError.unmatchedSlotClose(file: meta.file, line: meta.line, column: meta.column)
-
-            default:
-                defaultSlot.append(token)
-                i += 1
+        private static func isWhitespace(_ node: RenderNode) -> Bool {
+            switch node {
+            case .token(.text(let text, _)): return text.allSatisfy(\.isWhitespace)
+            case .token(.comment): return true
+            default: return false
             }
         }
 
-        return (namedSlots, defaultSlot)
+        mutating func slot(name: String, metadata: Metadata) throws -> [RenderNode] {
+            var nodes: [RenderNode] = []
+            while index < tokens.count {
+                switch tokens[index] {
+                case .slotClose(let closeName, let meta):
+                    guard closeName == name else {
+                        throw ResolverError.unmatchedSlotClose(file: meta.file, line: meta.line, column: meta.column)
+                    }
+                    index += 1
+                    return nodes
+                case .componentClose:
+                    throw ResolverError.unterminatedSlot(file: metadata.file, line: metadata.line, column: metadata.column)
+                default:
+                    nodes.append(try node())
+                }
+            }
+            throw ResolverError.unterminatedSlot(file: metadata.file, line: metadata.line, column: metadata.column)
+        }
     }
 }

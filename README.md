@@ -1,6 +1,6 @@
 # ESW
 
-**Type-safe HTML templates for Swift, compiled at build time.**
+**Peregrine’s HTML template engine: editable HTML, compiled Swift expressions, and typed components.**
 
 ---
 
@@ -8,8 +8,9 @@
 
 Write templates in familiar HTML syntax, compile them to Swift code at build time.
 
+`Views/users.esw`:
+
 ```html
-<!-- Views/users.esw -->
 <%!
 var users: [User]
 %>
@@ -23,7 +24,7 @@ var users: [User]
 **Generates:**
 
 ```swift
-func renderUsers(_ users: [User]) -> String {
+func renderUsers(users: [User]) -> String {
     var _buf = ESWBuffer()
     _buf.append("<ul>")
     for user in users {
@@ -39,10 +40,10 @@ func renderUsers(_ users: [User]) -> String {
 ```
 
 **Benefits:**
-- **Zero runtime overhead** — No template parsing, no file I/O, no cache
+- **No runtime template parsing** — Templates become Swift code during the build.
 - **Type-safe** — Template variables are Swift variables. Typos are compiler errors.
-- **XSS-safe by default** — All output is HTML-escaped. Raw output requires explicit opt-in.
-- **Designer-friendly** — No DSL to learn. Just HTML with familiar ERB-style tags.
+- **HTML escaping by default** — Dynamic text and attributes are escaped. Trusted HTML requires explicit opt-in.
+- **HTML authoring** — Use familiar HTML with Swift expressions, components, and slots.
 
 ---
 
@@ -50,55 +51,44 @@ func renderUsers(_ users: [User]) -> String {
 
 ### Installation
 
-Add to your `Package.swift`:
+These APIs are under development in this checkout. For a Peregrine app using this implementation, add a local dependency to `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/alembic-labs/swift-esw", from: "0.1.0"),
+    .package(path: "../esw"),
 ]
 ```
 
 ### Choose Your Integration
 
-### Option A: Swift Macros (Recommended)
+### Option A: Build Plugin (Recommended for Peregrine)
 
-**Framework-agnostic** — works with any Swift web framework.
-
-Returns `String`, you wrap it with your framework's response builder:
+The plugin compiles `.esw` and `.heex` files into `String`-returning functions. Template files are explicit build inputs, so editing a template rebuilds its renderer.
 
 ```swift
 targets: [
     .target(
         name: "App",
         dependencies: [
-            .product(name: "ESW", package: "swift-esw"),
+            .product(name: "ESW", package: "esw"),
+        ],
+        plugins: [
+            .plugin(name: "ESWBuildPlugin", package: "esw"),
         ]
     ),
 ]
 ```
 
-Build with `--disable-sandbox` to allow macro file reads:
+In a Peregrine route, use `conn.html(renderUsersIndex(users: users))`. The renderer returns ordinary HTML; the framework owns the response.
+
+### Option B: Macros
+
+Add the `ESW` product to your target for inline `#esw` and `#heex` templates. They capture Swift values from the surrounding scope. The `#render` file macro is also available, but its file read does not itself establish a SwiftPM template dependency; prefer the plugin for file templates that must rebuild reliably.
+
+File macros require compile-time file access:
 
 ```bash
 swift build --disable-sandbox
-```
-
-### Option B: Build Plugin (Nexus-Coupled)
-
-Auto-generates `Connection`-returning functions for **Nexus framework** only:
-
-```swift
-targets: [
-    .target(
-        name: "App",
-        dependencies: [
-            .product(name: "ESW", package: "swift-esw"),
-        ],
-        plugins: [
-            .plugin(name: "ESWBuildPlugin", package: "swift-esw"),
-        ]
-    ),
-]
 ```
 
 ### Your First Template
@@ -135,10 +125,10 @@ Response(status: .ok, body: .init(byteBuffer: ByteBuffer(string: #render("greeti
 Response(body: .init(string: #render("greeting.esw")))
 ```
 
-**Or with the build plugin (Nexus-coupled):**
+**Or with the build plugin:**
 
 ```swift
-return renderGreeting(conn: conn, name: "World")
+return conn.html(renderGreeting(name: "World"))
 ```
 
 ---
@@ -158,12 +148,52 @@ return renderGreeting(conn: conn, name: "World")
 | `<.component />` | Component tag | See below |
 | `<:slot></:slot>` | Named slot | See below |
 
-### Template Parameters
+### HTML-Aware Templates (`.heex`)
 
-Declare Swift variables in a front-matter block:
+Use `.heex` files or the `#heex` macro for balanced HTML tags, brace interpolation, dynamic attributes, and directives. Expressions are Swift:
 
 ```html
 <%!
+var items: [String]
+var show: Bool = true
+%>
+<section :if={show} class={["items", items.isEmpty ? "empty" : nil]}>
+  <ul>
+    <li :for={item in items}>{item}</li>
+  </ul>
+</section>
+```
+
+| Syntax | Behavior |
+|--------|----------|
+| `{expression}` | HTML-escaped body output, like `<%= expression %>` |
+| `title={value}` | Quoted, escaped attribute; `nil` omits it |
+| `disabled={flag}` | Boolean attribute: `true` emits it, `false` omits it |
+| `aria-expanded={flag}` | `aria-*` and `data-*` booleans render as `"true"` or `"false"` |
+| `class={["button", active ? "active" : nil]}` | Joins class names; ignores `nil`, booleans, and empty entries |
+| `{attributes}` inside a tag | Expands a `[String: Any?]` map in sorted key order |
+| `:if={condition}` | Conditionally renders an element or component |
+| `:for={item in items}` | Repeats an element or component |
+
+When both directives appear, `:for` creates the scope for `:if`, regardless of their attribute order:
+
+```html
+<li :if={item.count > 0} :for={item in items}>{item.name}</li>
+```
+
+The existing `<% ... %>` tags, components, and string slots also work in HEEx mode. Use `title={expression}` for dynamic HTML attributes; embedded `<%= ... %>` inside a quoted attribute is rejected. Attribute values are always escaped, including values marked with `render(...)`.
+
+HTML mode reports unclosed or mismatched tags, duplicate attributes, and malformed directives with source locations. Non-void elements need closing tags or `/>`. HTML comments and the bodies of `<script>` and `<style>` keep braces literal while still evaluating `<% ... %>` tags and processing escaped EEx delimiters. A bare `phx-no-curly-interpolation` attribute applies that brace rule to an HTML element, component, or slot body and its descendants; dynamic attributes and EEx tags still work, and the control attribute is removed from the output. Use `\{` and `\}` for literal braces in body text (in a Swift literal, use a raw string or escape the backslash).
+
+`.esw` files retain their text-template behavior: literal braces and HTML fragments are allowed. HEEx mode is a Swift template syntax inspired by Phoenix; it does not include LiveView state, diffing, or events.
+
+### Template Parameters
+
+Declare typed Swift `var` or `let` parameters in a front-matter block. SwiftParser handles multiline defaults and closure types. Add explicit imports for types from other modules:
+
+```html
+<%!
+import Peregrine
 var user: User
 var posts: [Post]
 var isAdmin: Bool = false
@@ -173,6 +203,8 @@ var isAdmin: Bool = false
   <span class="badge">Admin</span>
 <% } %>
 ```
+
+Imports belong to the generated Swift file. Inline macros use imports from their enclosing Swift source. Older templates declaring exactly `Connection` without any explicit import retain the Nexus import for compatibility; other type names do not cause inferred imports.
 
 ### Control Flow
 
@@ -263,8 +295,8 @@ Pass content regions to components using slots:
 struct Card: ESWComponent {
     static func render(
         title: String,
-        header: String = "",       // Named slot
-        footer: String = "",       // Named slot
+        footer: String = "",       // Named slots in alphabetical order
+        header: String = "",
         content: String = ""       // Default slot
     ) -> String {
         """
@@ -295,26 +327,84 @@ struct Card: ESWComponent {
 ```
 
 **Slot rules:**
-- Bare content outside `<>` goes to the default `content:` parameter
-- `<:name>` regions map to named parameters
-- Slots are passed in alphabetical order, then `content:` last
+
+- Content outside named slots goes to the default `content:` parameter.
+- `<:name>` regions map to named parameters and must be direct component children in HTML mode.
+- Attributes follow source order; named slots follow alphabetical order, with `content:` last. Match that order in your Swift signature.
+- A single named slot without attributes or directives remains a `String`, preserving existing components.
+
+### Typed, Deferred Slots
+
+Use repeated entries, slot attributes, or `:let` to pass an ordered array of `ESWSlot<Attributes, Input>`. Swift checks both the attributes and the input supplied by the component:
+
+```swift
+struct Person { let name: String }
+struct ColumnAttributes { let label: String }
+
+enum UI {
+    static func table(people: [Person], column: [ESWSlot<ColumnAttributes, Person>]) -> String {
+        let header = column.map { "<th>\(ESW.escape($0.attributes.label))</th>" }.joined()
+        let rows = people.map { person in
+            "<tr>" + column.map { "<td>\($0.render(person))</td>" }.joined() + "</tr>"
+        }.joined()
+        return "<table><thead>\(header)</thead><tbody>\(rows)</tbody></table>"
+    }
+}
+```
+
+```html
+<UI.table people={people}>
+  <:column label="Name" :let={person}><b>{person.name}</b></:column>
+  <:column label="Details" :if={showDetails} :let={person}>{person.name}</:column>
+</UI.table>
+```
+
+`<UI.table>` calls the qualified Swift function directly. `<.person-table>` continues to call `PersonTable.render`.
+
+Slot attributes are evaluated at the call site. The body runs only when the component calls `entry.render(input)`, and may run once per row or not at all. Within a template, `{renderSlot(entry, input)}` embeds the rendered body without double escaping. `renderSlot(entries, input)` renders a collection in order. Use `ESWEmptySlotAttributes` for entries without attributes and `Void` for bodies without input; `renderSlot(entries)` handles the latter.
+
+`:for` can create entries and `:if` can filter them. The loop variable is available to attributes, conditions, and content. The `:let` binding belongs only to the deferred body; it is unavailable to that entry’s attributes or condition. Tuple patterns such as `:let={(key, value)}` are supported. A self-closing entry cannot declare `:let`.
+
+A component can make a slot optional by giving its array parameter a default of `[]`. Missing required parameters, wrong attribute types, and unknown input members are Swift compilation errors.
+
+### Deferred Default Content
+
+`:let` on a component supplies a Swift closure as its default `content` argument:
+
+```swift
+struct FormContext { let fieldName: String; let value: String }
+
+struct Form: ESWComponent {
+    static func render(value: String, content: (FormContext) -> String) -> String {
+        "<form>" + content(FormContext(fieldName: "name", value: value)) + "</form>"
+    }
+}
+```
+
+```html
+<.form value={name} :let={form}>
+  <input name={form.fieldName} value={form.value} />
+</.form>
+```
+
+Named slots retain their own scope; a default slot’s binding does not leak into them. Components without `:let` retain their existing String content parameter.
 
 ---
 
 ## Macros
 
-ESW provides two Swift macros for template rendering.
+ESW provides three Swift macros for template rendering.
 
 ### `#render` — File Templates
 
-Reads a `.esw` file at compile time and expands to a `String`-returning closure:
+Reads a `.esw` or `.heex` file at compile time and expands to a `String`-returning closure. The extension selects the syntax:
 
 ```swift
 let users = try await db.query(User.self).all()
 let html = #render("users.esw")
 ```
 
-Template variables are captured from the surrounding scope.
+Template variables are captured from the surrounding scope. Front-matter defaults apply to generated functions; macros require the referenced variables in scope, including those with defaults.
 
 Wrap with your framework:
 
@@ -341,6 +431,17 @@ let badge = #esw("""
     """)
 ```
 
+### `#heex` — Inline HTML-Aware Templates
+
+```swift
+let items = ["Swift", "HTML"]
+let html = #heex("""
+    <ul><li :for={item in items}>{item}</li></ul>
+    """)
+```
+
+Inline macros decode normal and raw Swift string literals. Use template expressions for dynamic content; Swift string interpolation inside the template literal is rejected.
+
 ### Framework Integration
 
 The macro returns `String` — wrap it with whatever your framework provides:
@@ -356,29 +457,49 @@ Response(status: .ok, body: .init(byteBuffer: ByteBuffer(string: #render("page.e
 Response(body: .init(string: #render("page.esw")))
 ```
 
-**Note:** Macros require `--disable-sandbox` due to Swift's sandbox restricting file reads.
+**Note:** File templates via `#render` require `--disable-sandbox` for compile-time file reads. `#esw` and `#heex` do not read template files.
 
 ---
 
 ## Build Plugin
 
-Auto-generates Swift functions from `.esw` files.
+Auto-generates Swift functions returning `String` from `.esw` and `.heex` files.
 
 ### Generated Functions
 
 | Filename | Generated Function |
 |----------|-------------------|
-| `user_profile.esw` | `renderUserProfile(conn:...)` |
-| `layout.esw` | `renderLayout(conn:...)` |
-| `_user_card.esw` | `renderUserCard(conn:...)` + `_renderUserCardBuffer(...)` |
+| `user_profile.esw` | `renderUserProfile(...)` |
+| `layout.esw` | `renderLayout(...)` |
+| `tasks.heex` | `renderTasks(...)` |
+| `users/index.heex` | `renderUsersIndex(...)` |
+| `posts/index.esw` | `renderPostsIndex(...)` |
+| `users/_card.heex` | `renderUsersCard(...)` + `_renderUsersCardBuffer(...)` |
+| `_user_card.esw` | `renderUserCard(...)` + `_renderUserCardBuffer(...)` |
 
 ### Usage
 
 ```swift
-return renderUserProfile(conn: conn, user: user, posts: posts)
+return conn.html(renderUserProfile(user: user, posts: posts))
 ```
 
-**Partials** (files starting with `_`) get both `Connection`-returning and `String`-returning variants for embedding in parent templates.
+**Partials** (files starting with `_`) also get a `_render…Buffer(...)` alias returning the same `String`. Both variants retain parameter defaults.
+
+Names are relative to `Views/` (or the target directory for templates outside it). Directory names are part of the function name, so separate resources can each have `index.heex`. Underscores and hyphens separate words in generated names. The plugin rejects filename collisions such as `user_card.esw` and `user-card.heex`, which both generate `renderUserCard`.
+
+### Compiler CLI
+
+```bash
+swift run ESWCompilerCLI Views/tasks.heex --output /tmp/renderTasks.swift --source-location
+```
+
+Use `--heex` to opt into HTML mode for a file with a different extension. A batch uses the same naming and collision checks as the plugin:
+
+```bash
+swift run ESWCompilerCLI --batch --root Sources/App --output /tmp/ESWTemplates.swift Sources/App/Views/users/index.heex Sources/App/Views/posts/index.esw
+```
+
+The plugin regenerates one Swift file for the target when a template changes. Generation is atomic: parsing or name-collision errors leave the previous output intact.
 
 ---
 
@@ -388,8 +509,9 @@ Wrap page content in a consistent layout shell.
 
 ### Layout Template
 
+`Views/layout.esw`:
+
 ```html
-<!-- Views/layout.esw -->
 <%!
 var title: String
 var content: String
@@ -409,7 +531,8 @@ var content: String
 ### Composition
 
 ```swift
-let body = #render("user_profile.esw")
+let content = #render("user_profile.esw")
+let title = "User profile"
 let page = #render("layout.esw")
 
 // Wrap with your framework (Nexus example)
@@ -422,6 +545,8 @@ conn.html(page)
 
 - `<%= %>` — HTML-escapes output (default)
 - `<%== %>` — Raw output, no escaping
+
+Escaping processes Unicode scalars, including quotes with combining marks. Trusted body HTML is still escaped in attribute values. HTML escaping does not serialize JavaScript/CSS data or validate URL schemes; prepare values for those contexts explicitly.
 
 To embed pre-rendered HTML without double-escaping:
 
@@ -475,9 +600,11 @@ func assetPath(_ name: String) -> String {
 
 ## Hot Reload
 
-Auto-recompile `.esw` files during development.
+Auto-recompile `.esw` and `.heex` files during development.
 
 ### Setup
+
+Install fswatch 1.22 or newer:
 
 ```bash
 brew install fswatch
@@ -489,13 +616,13 @@ brew install fswatch
 ./scripts/dev_watch.sh
 ```
 
-Watches all `.esw` files and runs `swift build` on changes.
+Watches `.esw` and `.heex` files outside `.build` and `.git`, and runs `swift build` on changes.
 
 ---
 
 ## Error Messages
 
-Compiler errors point to the `.esw` file:
+Generated function errors point to the template file:
 
 ```
 Views/user_profile.esw:5:22: error: value of type 'User' has no member 'naem'
@@ -521,13 +648,22 @@ swift test
 ### Test Build Plugin Fixture
 
 ```bash
-cd Fixtures/PluginConsumer && swift run App
+cd Fixtures/PluginConsumer
+swift run --disable-sandbox App
 ```
+
+### Integration and Peregrine Generator Checks
+
+```bash
+python3 scripts/check_integration.py --peregrine ../Peregrine
+```
+
+This verifies consumer rendering, a template-only incremental rebuild, failed-batch output preservation, and negative Swift type checks for slots. With `--peregrine`, it also compiles Peregrine’s generator sources, feeds the resulting templates through ESW, parses generated Swift routes, and evaluates generated package manifests. It does not run the generated application’s database or HTTP stack.
 
 ### Hot Reload Development
 
 ```bash
-# Terminal 1: Watch ESW files
+# Terminal 1: Watch ESW and HEEx files
 ./scripts/dev_watch.sh
 
 # Terminal 2: Run your app
@@ -544,26 +680,30 @@ swift-esw/
 │   ├── ESW/                  # Runtime library
 │   │   ├── ESWBuffer.swift    # String builder
 │   │   ├── ESWComponent.swift # Component protocol
+│   │   ├── Attributes.swift   # Dynamic HTML attributes
+│   │   ├── Slots.swift        # Typed deferred slot entries
 │   │   ├── AssetManifest.swift
 │   │   └── Macros.swift       # Macro declarations
 │   ├── ESWCompilerLib/       # Compiler core
 │   │   ├── Tokenizer.swift    # Lexical analysis
+│   │   ├── HTMLTokenizer.swift # HTML validation and directives
+│   │   ├── SwiftLexicalScanner.swift # Swift strings and comments
 │   │   ├── ComponentResolver.swift  # Component tree building
 │   │   ├── CodeGenerator.swift       # Swift code generation
 │   │   └── Compiler.swift
 │   ├── ESWMacros/            # Macro implementations
-│   ├── ESWCompilerCLI/       # Standalone CLI
-│   └── ESWBuildPlugin/       # SPM plugin
-├── Tests/                     # 179 tests
+│   └── ESWCompilerCLI/       # Standalone CLI
+├── Plugins/ESWBuildPlugin/   # SPM plugin
+├── Tests/                    # Compiler and runtime tests
 └── Fixtures/                  # Integration test app
 ```
 
 ### Compiler Pipeline
 
 ```
-.esw source
+.esw / .heex source
     ↓
-Tokenizer → Tokens
+Tokenizer (text or HTML mode) → Tokens
     ↓
 WhitespaceTrimmer → Trimmed tokens
     ↓
@@ -586,3 +726,7 @@ CodeGenerator → Swift code
 ## License
 
 MIT
+
+## Design and Compatibility
+
+See [the engine design](Documentation/TemplateEngine.md) for implementation boundaries and [the EEx/HEEx comparison](Documentation/HEExParity.md) for primary-source research. ESW uses Swift expressions and returns complete HTML strings. LiveView-style diffs, event transport, asynchronous rendering, and editor formatting are separate work. No comparative performance claim is made.

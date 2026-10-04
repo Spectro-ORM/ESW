@@ -1,0 +1,8 @@
+<%!
+var items: [String]
+var counts: [String: Int] = [:]
+var show: Bool = true
+%>
+<section :if={show} class={["tasks", items.isEmpty ? "empty" : nil]}>
+  <ul><li :for={item in items} data-count={counts[item]}>{item}</li></ul>
+</section>

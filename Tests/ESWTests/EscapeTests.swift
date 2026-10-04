@@ -3,6 +3,12 @@ import Testing
 
 @Suite("ESW.escape")
 struct EscapeTests {
+    @Test func combiningMarksCannotHideHTMLDelimiters() {
+        #expect(ESW.escape("\"\u{301}<\u{301}&\u{301}'\u{301}>\u{301}") == "&quot;\u{301}&lt;\u{301}&amp;\u{301}&#39;\u{301}&gt;\u{301}")
+        let value = "\"\u{301} data-extra=\"bad"
+        #expect(ESW.attribute("title", value) == " title=\"&quot;\u{301} data-extra=&quot;bad\"")
+    }
+
     @Test func nilReturnsEmpty() {
         #expect(ESW.escape(nil) == "")
     }

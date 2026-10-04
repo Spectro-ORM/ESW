@@ -107,7 +107,7 @@ struct HardeningTests {
 
     @Test func emptyAssignsTag() throws {
         let tokens = try tokenize("<%! %>")
-        #expect(tokens == [.assigns("", metadata: Metadata(file: "test.esw", line: 1, column: 1))])
+        #expect(tokens == [.assigns(" ", metadata: Metadata(file: "test.esw", line: 1, column: 1))])
     }
 
     @Test func emptyAssignsProducesNoParams() throws {
@@ -128,13 +128,12 @@ struct HardeningTests {
         }
     }
 
-    @Test func percentGreaterThanInStringLiteralKnownLimitation() throws {
-        // Known limitation: %> inside a Swift string literal terminates the tag early.
+    @Test func percentGreaterThanInStringLiteral() throws {
         let source = "<% let x = \"%>\" %>"
         let tokens = try tokenize(source)
-        #expect(tokens.count >= 1)
+        #expect(tokens.count == 1)
         if case .code(let code, _) = tokens[0] {
-            #expect(code == "let x = \"")
+            #expect(code == "let x = \"%>\"")
         } else {
             Issue.record("Expected code token")
         }

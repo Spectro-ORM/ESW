@@ -1,30 +1,31 @@
 #!/bin/bash
 # Development watch script for ESW
-# Watches .esw files and rebuilds when they change
+# Watches .esw and .heex files and rebuilds when they change
 #
 # Usage:
 #   ./scripts/dev_watch.sh
 #
 # Requirements:
-#   - fswatch (install via: brew install fswatch)
+#   - fswatch 1.22+ (install via: brew install fswatch)
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
 
-echo "🔍 Watching .esw files in $PROJECT_ROOT"
+echo "🔍 Watching .esw and .heex files in $PROJECT_ROOT"
 echo "🔄 Will rebuild on changes..."
 echo ""
 echo "Press Ctrl+C to stop"
 echo ""
 
-# Watch for .esw file changes and rebuild
-fswatch -o "$PROJECT_ROOT" --event=Updated --event=Created --event=Removed \
-  --exclude=".build" \
-  --exclude=".git" \
+# Include templates, then exclude generated files even if they are templates.
+fswatch -o -r "$PROJECT_ROOT" --event=Updated --event=Created --event=Removed --event=Renamed \
   --extended \
-  '\.esw$' | while read -r num; do
+  --filter-mode=conjunctive \
+  --include='\.(esw|heex)$' \
+  --exclude='/\.(build|git)(/|$)' | while read -r num; do
   echo ""
   echo "📝 Changes detected ($num file(s) affected)"
   echo "🔨 Rebuilding..."

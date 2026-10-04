@@ -255,11 +255,13 @@ struct ComponentResolverTests {
         }
     }
 
-    @Test func duplicateSlot() throws {
+    @Test func repeatedSlotsPreserveEntries() throws {
         let tokens = try tokenize("<.card><:header>A</:header><:header>B</:header></.card>")
-        #expect(throws: ComponentResolver.ResolverError.self) {
-            let _ = try ComponentResolver.resolve(tokens)
+        let nodes = try ComponentResolver.resolve(tokens)
+        guard case .component(let component) = nodes.first else {
+            Issue.record("Expected component"); return
         }
+        #expect(component.namedSlots.count == 2)
     }
 
     @Test func slotOutsideComponent() throws {

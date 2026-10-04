@@ -1,37 +1,44 @@
-import Algorithms
-
 public struct CodeGenerator {
     private let renderNodes: [RenderNode]
     private let parameters: [Parameter]
     private let sourceFile: String
     private let filename: String
     private let emitSourceLocations: Bool
+    private let imports: [String]
+    private let generatedBufferName: String
+    private let slotValueName: String
 
     public init(
         renderNodes: [RenderNode],
         parameters: [Parameter],
         sourceFile: String,
         filename: String,
-        emitSourceLocations: Bool = true
+        emitSourceLocations: Bool = true,
+        imports: [String] = []
     ) {
         self.renderNodes = renderNodes
         self.parameters = parameters
         self.sourceFile = sourceFile
         self.filename = filename
         self.emitSourceLocations = emitSourceLocations
+        self.imports = imports
+        let source = Self.sourceText(nodes: renderNodes, parameters: parameters)
+        self.generatedBufferName = Self.freshIdentifier("_buf", avoiding: source)
+        self.slotValueName = Self.freshIdentifier("__esw_slot_value", avoiding: source)
     }
 
     /// Returns a self-contained immediately-invoked closure expression that
     /// builds and returns the rendered template buffer.
     public func generateExpression() -> String {
         var lines: [String] = []
+        let bufferName = generatedBufferName
         lines.append("{")
-        lines.append("    var _buf = ESWBuffer()")
-        let emittedLocation = emitNodeBody(&lines, nodes: renderNodes)
+        lines.append("    var \(bufferName) = ESWBuffer()")
+        let emittedLocation = emitNodeBody(&lines, nodes: renderNodes, bufferName: bufferName)
         if emitSourceLocations && emittedLocation {
             lines.append("    #sourceLocation()")
         }
-        lines.append("    return _buf.finalize()")
+        lines.append("    return \(bufferName).finalize()")
         lines.append("}()")
         return lines.joined(separator: "\n")
     }
@@ -46,20 +53,32 @@ public struct CodeGenerator {
         // Always import ESW
         lines.append("import ESW")
 
-        // Detect and add framework-specific imports based on parameter types
-        let requiredImports = detectRequiredImports(from: parameters)
-        for importName in requiredImports.sorted() {
-            lines.append("import \(importName)")
+        lines.append(contentsOf: imports.filter { $0 != "import ESW" })
+        // Compatibility for existing Peregrine generators. Explicit imports
+        // take precedence; arbitrary type names never select a framework.
+        if imports.isEmpty, parameters.contains(where: { $0.type == "Connection" }) {
+            lines.append("import Nexus")
         }
 
         lines.append("")
 
         generateStringFunction(&lines)
+        if Naming.isPartial(filename) {
+            lines.append("")
+            lines.append("func \(Naming.bufferFunctionName(from: filename))(\(buildParamList())) -> String {")
+            let arguments = parameters.map {
+                let name = Self.escapedParamName($0.name.replacingHyphens())
+                return "\(name): \(name)"
+            }.joined(separator: ", ")
+            lines.append("    \(Naming.functionName(from: filename))(\(arguments))")
+            lines.append("}")
+        }
 
         return lines.joined(separator: "\n") + "\n"
     }
 
     private func generateStringFunction(_ lines: inout [String]) {
+        let bufferName = generatedBufferName
         let funcName = Naming.functionName(from: filename)
         let paramList = buildParamList()
         if paramList.isEmpty {
@@ -69,12 +88,12 @@ public struct CodeGenerator {
             lines.append("    \(paramList)")
             lines.append(") -> String {")
         }
-        lines.append("    var _buf = ESWBuffer()")
-        let emittedLocation = emitNodeBody(&lines, nodes: renderNodes)
+        lines.append("    var \(bufferName) = ESWBuffer()")
+        let emittedLocation = emitNodeBody(&lines, nodes: renderNodes, bufferName: bufferName)
         if emitSourceLocations && emittedLocation {
             lines.append("#sourceLocation()")
         }
-        lines.append("    return _buf.finalize()")
+        lines.append("    return \(bufferName).finalize()")
         lines.append("}")
     }
 
@@ -82,7 +101,7 @@ public struct CodeGenerator {
         return parameters.map { param in
             let swiftKey = param.name.split(separator: "-", omittingEmptySubsequences: false).joined(separator: "_")
             let escapedKey = CodeGenerator.escapedParamName(swiftKey)
-            let type = param.type.split(separator: " ").first.map(String.init) ?? param.type
+            let type = param.type
             if let defaultValue = param.defaultValue {
                 return "\(escapedKey): \(type) = \(defaultValue)"
             } else {
@@ -92,7 +111,7 @@ public struct CodeGenerator {
     }
 
     @discardableResult
-    private func emitNodeBody(_ lines: inout [String], nodes: [RenderNode], bufferName: String = "_buf") -> Bool {
+    private func emitNodeBody(_ lines: inout [String], nodes: [RenderNode], bufferName: String) -> Bool {
         var emittedLocation = false
         for node in nodes {
             switch node {
@@ -107,59 +126,82 @@ public struct CodeGenerator {
 
     @discardableResult
     private func emitComponentNode(_ lines: inout [String], node: ComponentNode, bufferName: String) -> Bool {
-        var emittedLocation = false
-        if emitSourceLocation(lines: &lines, node.metadata) { emittedLocation = true }
-
-        let typeName = kebabToPascalCase(node.name)
-        let hasSlots = !node.namedSlots.isEmpty || !node.defaultSlot.isEmpty
-
-        let attrArgs = node.attributes.map { attr -> String in
-            let swiftKey = attr.key.split(separator: "-", omittingEmptySubsequences: false).joined(separator: "_")
-            switch attr.value {
-            case .none: return "\(swiftKey): true"
-            case .string(let s): return "\(swiftKey): \(rawStringLiteral(s))"
-            case .expression(let expr): return "\(swiftKey): \(expr)"
-            }
-        }
-
+        let emittedLocation = emitSourceLocation(lines: &lines, node.metadata)
+        let directives = emitDirectives(&lines, attributes: node.attributes)
+        let attributes = node.attributes.filter { !$0.key.hasPrefix(":") }.map(componentArgument)
+        let slots = Dictionary(grouping: node.namedSlots, by: \.name).sorted { $0.key < $1.key }
+        let hasSlots = !slots.isEmpty || !node.defaultSlot.isEmpty
+        let callee = componentCallee(node.name)
         if !hasSlots {
-            let argList = attrArgs.joined(separator: ", ")
-            lines.append("    \(bufferName).appendUnsafe(\(typeName).render(\(argList)))")
+            lines.append("    \(bufferName).appendUnsafe(\(callee)(\(attributes.joined(separator: ", "))))")
         } else {
-            lines.append("    \(bufferName).appendUnsafe(\(typeName).render(")
-
-            for (i, arg) in attrArgs.enumerated() {
-                let comma = (i < attrArgs.count - 1 || hasSlots) ? "," : ""
-                lines.append("        \(arg)\(comma)")
+            lines.append("    \(bufferName).appendUnsafe(\(callee)(")
+            for attribute in attributes { lines.append("        \(attribute),") }
+            for (index, group) in slots.enumerated() {
+                let comma = index < slots.count - 1 || !node.defaultSlot.isEmpty ? "," : ""
+                let key = group.key.replacingHyphens()
+                if group.value.count == 1, let slot = group.value.first, slot.attributes.isEmpty {
+                    lines.append("        \(key): {")
+                    emitContent(&lines, nodes: slot.nodes)
+                    lines.append("        }()\(comma)")
+                } else {
+                    lines.append("        \(key): ESW.slots {")
+                    for slot in group.value { emitSlotEntry(&lines, slot: slot) }
+                    lines.append("        }\(comma)")
+                }
             }
-
-            let sortedSlots = node.namedSlots.sorted { $0.name < $1.name }
-            for (i, slot) in sortedSlots.enumerated() {
-                let swiftKey = slot.name.split(separator: "-", omittingEmptySubsequences: false).joined(separator: "_")
-                let isLast = i == sortedSlots.count - 1 && node.defaultSlot.isEmpty
-                lines.append("        \(swiftKey): {")
-                lines.append("            var _buf = ESWBuffer()")
-                emitNodeBody(&lines, nodes: slot.nodes, bufferName: "_buf")
-                lines.append("            return _buf.finalize()")
-                lines.append("        }()\(isLast ? "" : ",")")
-            }
-
             if !node.defaultSlot.isEmpty {
-                lines.append("        content: {")
-                lines.append("            var _buf = ESWBuffer()")
-                emitNodeBody(&lines, nodes: node.defaultSlot, bufferName: "_buf")
-                lines.append("            return _buf.finalize()")
-                lines.append("        }()")
+                if let binding = TemplateValidation.binding(in: node.attributes) {
+                    lines.append("        content: { \(slotValueName) in")
+                    lines.append("            let \(binding) = \(slotValueName)")
+                    emitContent(&lines, nodes: node.defaultSlot)
+                    lines.append("        }")
+                } else {
+                    lines.append("        content: {")
+                    emitContent(&lines, nodes: node.defaultSlot)
+                    lines.append("        }()")
+                }
             }
-
             lines.append("    ))")
         }
-
+        for _ in 0..<directives { lines.append("    }") }
         return emittedLocation
     }
 
+    private func emitContent(_ lines: inout [String], nodes: [RenderNode]) {
+        let bufferName = generatedBufferName
+        lines.append("            var \(bufferName) = ESWBuffer()")
+        emitNodeBody(&lines, nodes: nodes, bufferName: bufferName)
+        lines.append("            return \(bufferName).finalize()")
+    }
+
+    private func emitSlotEntry(_ lines: inout [String], slot: Slot) {
+        emitSourceLocation(lines: &lines, slot.metadata)
+        let directives = emitDirectives(&lines, attributes: slot.attributes)
+        let arguments = slot.attributes.filter { !$0.key.hasPrefix(":") }.map(componentArgument).joined(separator: ", ")
+        let binding = TemplateValidation.binding(in: slot.attributes)
+        lines.append("            ESWSlot(attributes: .init(\(arguments))) { \(binding == nil ? "_" : slotValueName) in")
+        if let binding { lines.append("                let \(binding) = \(slotValueName)") }
+        emitContent(&lines, nodes: slot.nodes)
+        lines.append("            }")
+        for _ in 0..<directives { lines.append("    }") }
+    }
+
+    private func componentCallee(_ name: String) -> String {
+        name.contains(".") ? name : kebabToPascalCase(name) + ".render"
+    }
+
+    private func componentArgument(_ attribute: ComponentAttribute) -> String {
+        let name = attribute.key.replacingHyphens()
+        switch attribute.value {
+        case .none: return "\(name): true"
+        case .string(let value): return "\(name): \(rawStringLiteral(value))"
+        case .expression(let value): return "\(name): \(value)"
+        }
+    }
+
     @discardableResult
-    private func emitTokenBody(_ lines: inout [String], token: Token, bufferName: String = "_buf") -> Bool {
+    private func emitTokenBody(_ lines: inout [String], token: Token, bufferName: String) -> Bool {
         var emittedLocation = false
         switch token {
         case .text(let s, let meta):
@@ -181,25 +223,40 @@ public struct CodeGenerator {
         case .rawOutput(let expr, let meta):
             if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
             lines.append("    \(bufferName).appendUnsafe(\(expr))")
+        case .htmlAttribute(let name, let expression, let meta):
+            if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
+            lines.append("    \(bufferName).appendUnsafe(ESW.attribute(\(rawStringLiteral(name)), \(expression)))")
+        case .htmlAttributes(let expression, let meta):
+            if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
+            lines.append("    \(bufferName).appendUnsafe(ESW.attributes(\(expression)))")
         case .code(let code, let meta):
             if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
             lines.append("    \(code)")
         case .comment, .assigns, .componentClose, .slotOpen, .slotClose:
             break
-        case .componentTag(let name, let attributes, let selfClosing, let meta):
+        case .componentTag(let name, let attributes, _, let meta):
             if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
-            let typeName = kebabToPascalCase(name)
+            let callee = componentCallee(name)
+            let directives = emitDirectives(&lines, attributes: attributes)
             let argList = buildComponentArgList(attributes)
-            if selfClosing {
-                lines.append("    \(bufferName).appendUnsafe(\(typeName).render(\(argList)))")
-            } else {
-                lines.append("    \(bufferName).appendUnsafe(\(typeName).render(\(argList)))")
-            }
+            lines.append("    \(bufferName).appendUnsafe(\(callee)(\(argList)))")
+            for _ in 0..<directives { lines.append("    }") }
         }
         return emittedLocation
     }
 
     // MARK: - Component helpers
+
+    private func emitDirectives(_ lines: inout [String], attributes: [ComponentAttribute]) -> Int {
+        var count = 0
+        for (key, keyword) in [(":for", "for"), (":if", "if")] {
+            if let attribute = attributes.first(where: { $0.key == key }), case .expression(let expression) = attribute.value {
+                lines.append("    \(keyword) \(expression) {")
+                count += 1
+            }
+        }
+        return count
+    }
 
     private func kebabToPascalCase(_ name: String) -> String {
         name.split(separator: "-", omittingEmptySubsequences: true)
@@ -212,38 +269,69 @@ public struct CodeGenerator {
     }
 
     private func buildComponentArgList(_ attributes: [ComponentAttribute]) -> String {
-        attributes.map { attr in
-            let swiftKey = attr.key.split(separator: "-", omittingEmptySubsequences: false).joined(separator: "_")
-            switch attr.value {
-            case .none:
-                return "\(swiftKey): true"
-            case .string(let s):
-                return "\(swiftKey): \(rawStringLiteral(s))"
-            case .expression(let expr):
-                return "\(swiftKey): \(expr)"
-            }
-        }.joined(separator: ", ")
+        attributes.filter { !$0.key.hasPrefix(":") }.map(componentArgument).joined(separator: ", ")
     }
 
     // MARK: - Private helpers
 
-    private func detectRequiredImports(from parameters: [Parameter]) -> Set<String> {
-        var imports = Set<String>()
-        for param in parameters {
-            // Check type annotations for known framework types
-            if param.type.contains("Connection") {
-                imports.insert("Nexus")
+    /// A conservative source scan keeps generated locals out of the caller's
+    /// namespace, including parameters, EEx code, directives, and nested slots.
+    private static func sourceText(nodes: [RenderNode], parameters: [Parameter]) -> String {
+        var fragments = parameters.flatMap { [$0.name, $0.type, $0.defaultValue ?? ""] }
+        func attributes(_ values: [ComponentAttribute]) {
+            for attribute in values {
+                fragments.append(attribute.key)
+                switch attribute.value {
+                case .string(let value), .expression(let value): fragments.append(value)
+                case .none: break
+                }
             }
-            // Add more framework type detections as needed
-            // For example: Peregrine, Hummingbird, Vapor, etc.
         }
-        return imports
+        func visit(_ nodes: [RenderNode]) {
+            for node in nodes {
+                switch node {
+                case .component(let component):
+                    fragments.append(component.name)
+                    attributes(component.attributes)
+                    visit(component.defaultSlot)
+                    for slot in component.namedSlots {
+                        fragments.append(slot.name)
+                        attributes(slot.attributes)
+                        visit(slot.nodes)
+                    }
+                case .token(let token):
+                    switch token {
+                    case .text(let value, _), .output(let value, _), .rawOutput(let value, _),
+                         .code(let value, _), .comment(let value, _), .assigns(let value, _),
+                         .htmlAttributes(let value, _): fragments.append(value)
+                    case .htmlAttribute(let name, let expression, _): fragments += [name, expression]
+                    case .componentTag(let name, let values, _, _), .slotOpen(let name, let values, _, _):
+                        fragments.append(name)
+                        attributes(values)
+                    case .componentClose(let name, _), .slotClose(let name, _): fragments.append(name)
+                    }
+                }
+            }
+        }
+        visit(nodes)
+        return fragments.joined(separator: "\n")
+    }
+
+    private static func freshIdentifier(_ base: String, avoiding source: String) -> String {
+        var name = base
+        var suffix = 0
+        while source.contains(name) {
+            suffix += 1
+            name = base + String(suffix)
+        }
+        return name
     }
 
     private func rawStringHashes(_ s: String) -> String {
         var hashes = 1
         while s.contains("\"" + String(repeating: "#", count: hashes)) ||
-              s.contains(String(repeating: "#", count: hashes) + "\"") {
+              s.contains(String(repeating: "#", count: hashes) + "\"") ||
+              s.contains("\\" + String(repeating: "#", count: hashes)) {
             hashes += 1
         }
         while s.contains("\"\"\"" + String(repeating: "#", count: hashes)) {
@@ -254,6 +342,7 @@ public struct CodeGenerator {
 
     private func rawStringLiteral(_ s: String) -> String {
         let h = rawStringHashes(s)
+        if s.contains("\n") { return "\(h)\"\"\"\n\(s)\n\"\"\"\(h)" }
         return "\(h)\"\(s)\"\(h)"
     }
 
@@ -273,7 +362,13 @@ public struct CodeGenerator {
     @discardableResult
     private func emitSourceLocation(lines: inout [String], _ meta: Metadata) -> Bool {
         guard emitSourceLocations else { return false }
-        lines.append("#sourceLocation(file: \"\(meta.file)\", line: \(meta.line))")
+        lines.append("#sourceLocation(file: \(String(reflecting: meta.file)), line: \(meta.line))")
         return true
+    }
+}
+
+extension String {
+    func replacingHyphens() -> String {
+        split(separator: "-", omittingEmptySubsequences: false).joined(separator: "_")
     }
 }

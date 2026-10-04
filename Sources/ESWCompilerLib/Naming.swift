@@ -1,68 +1,22 @@
 public enum Naming {
-
-    /// Converts an `.esw` filename to a Swift function name per spec §8.4.
-    ///
-    /// - Strips the `.esw` extension
-    /// - Strips leading underscores (partial convention)
-    /// - Converts `snake_case` to `camelCase`
-    /// - Prefixes with `render`
-    ///
-    /// Examples:
-    /// - `user_profile.esw` → `renderUserProfile`
-    /// - `layout.esw` → `renderLayout`
-    /// - `_user_card.esw` → `renderUserCard`
-    /// - `index.esw` → `renderIndex`
+    /// Names are relative to the template root: users/index.heex → renderUsersIndex.
+    /// Flat names retain their original spelling and partial convention.
     public static func functionName(from filename: String) -> String {
-        var stem = filename
-        if stem.hasSuffix(".esw") {
-            stem = String(stem.dropLast(4))
+        let components = filename.split(separator: "/").map { component in
+            let stem = component.split(separator: ".", maxSplits: 1).first ?? component
+            return stem.split(whereSeparator: { $0 == "_" || $0 == "-" }).enumerated().map { index, word in
+                let text = index == 0 ? word.lowercased() : String(word)
+                return text.prefix(1).uppercased() + text.dropFirst()
+            }.joined()
         }
-
-        // Strip secondary extensions (e.g. "layout.html" → "layout").
-        // Supports both `index.html.esw` and plain `index.esw`.
-        if let dotIndex = stem.firstIndex(of: ".") {
-            stem = String(stem[..<dotIndex])
-        }
-
-        // Strip leading underscores
-        while stem.hasPrefix("_") {
-            stem = String(stem.dropFirst())
-        }
-
-        let camelCased = snakeToCamelCase(stem)
-        return "render" + capitalizeFirst(camelCased)
+        return "render" + components.joined()
     }
 
-    /// Converts `snake_case` to `camelCase`.
-    private static func snakeToCamelCase(_ input: String) -> String {
-        let parts = input.split(separator: "_", omittingEmptySubsequences: true)
-        guard let first = parts.first else { return input }
-
-        var result = String(first).lowercased()
-        for part in parts.dropFirst() {
-            result += capitalizeFirst(String(part))
-        }
-        return result
-    }
-
-    /// Capitalizes the first character of a string.
-    private static func capitalizeFirst(_ s: String) -> String {
-        guard let first = s.first else { return s }
-        return first.uppercased() + s.dropFirst()
-    }
-
-    /// Converts a filename to the buffer function name (for partials).
-    /// e.g. `_user_card.esw` → `_renderUserCardBuffer`
     public static func bufferFunctionName(from filename: String) -> String {
         "_" + functionName(from: filename) + "Buffer"
     }
 
-    /// Checks if a filename represents a partial (starts with `_`).
     public static func isPartial(_ filename: String) -> Bool {
-        var stem = filename
-        if stem.hasSuffix(".esw") {
-            stem = String(stem.dropLast(4))
-        }
-        return stem.hasPrefix("_")
+        filename.split(separator: "/").last?.hasPrefix("_") == true
     }
 }

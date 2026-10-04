@@ -1,11 +1,14 @@
 public struct Tokenizer {
-    private let source: String
-    private let file: String
-    private var index: String.Index
-    private var line: Int = 1
-    private var column: Int = 1
+    let source: String
+    let file: String
+    var index: String.Index
+    var line: Int = 1
+    var column: Int = 1
+    let syntax: TemplateSyntax
+    var htmlElements: [HTMLElement] = []
+    var htmlCommentMetadata: Metadata?
 
-    public init(source: String, file: String = "<anonymous>") {
+    public init(source: String, file: String = "<anonymous>", syntax: TemplateSyntax = .esw) {
         // Normalize line endings: \r\n → \n, bare \r → \n.
         // Swift treats \r\n as a single Character (grapheme cluster), so we
         // must work at the unicode scalar level.
@@ -29,6 +32,7 @@ public struct Tokenizer {
         self.source = normalized
         self.file = file
         self.index = normalized.startIndex
+        self.syntax = syntax
     }
 
     public mutating func tokenize() throws -> [Token] {
@@ -38,6 +42,14 @@ public struct Tokenizer {
         var textColumn = column
 
         while index < source.endIndex {
+            if syntax == .heex, let htmlTokens = try readHTMLToken() {
+                if !textBuffer.isEmpty {
+                    tokens.append(.text(textBuffer, metadata: Metadata(file: file, line: textLine, column: textColumn)))
+                    textBuffer = ""
+                }
+                tokens.append(contentsOf: htmlTokens)
+                continue
+            }
             // Check for `<%%` (escape open → literal `<%`)
             if peek() == "<" && peek(offset: 1) == "%" && peek(offset: 2) == "%" {
                 if textBuffer.isEmpty {
@@ -75,12 +87,13 @@ public struct Tokenizer {
                 advance() // <
                 advance() // /
                 advance() // :
-                let name = readComponentName()
+                let name = try readValidatedComponentName(tagLine: tagLine, tagColumn: tagColumn)
                 skipWhitespace()
                 guard peek() == ">" else {
                     throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
                 }
                 advance() // >
+                if syntax == .heex { try closeHTMLElement(":" + name) }
                 tokens.append(.slotClose(name: name, metadata: Metadata(file: file, line: tagLine, column: tagColumn)))
                 continue
             }
@@ -95,18 +108,29 @@ public struct Tokenizer {
                 let tagColumn = column
                 advance() // <
                 advance() // :
-                let name = readComponentName()
-                skipWhitespace()
+                let name = try readValidatedComponentName(tagLine: tagLine, tagColumn: tagColumn)
+                let metadata = Metadata(file: file, line: tagLine, column: tagColumn)
+                if syntax == .heex, htmlElements.last?.name.hasPrefix(".") != true {
+                    throw htmlDiagnostic("named slots must be direct children of a component", at: metadata)
+                }
+                var attributes = try readComponentAttributes(tagLine: tagLine, tagColumn: tagColumn)
+                let interpolateCurly = try consumeCurlyDirective(in: &attributes, metadata: metadata)
+                let selfClosing = peek() == "/"
+                if selfClosing { advance() }
                 guard peek() == ">" else {
                     throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
                 }
-                advance() // >
-                tokens.append(.slotOpen(name: name, metadata: Metadata(file: file, line: tagLine, column: tagColumn)))
+                advance()
+                try TemplateValidation.validateBinding(in: attributes, selfClosing: selfClosing, metadata: metadata)
+                if syntax == .heex && !selfClosing {
+                    openHTMLElement(":" + name, line: tagLine, column: tagColumn, interpolateCurly: interpolateCurly)
+                }
+                tokens.append(.slotOpen(name: name, attributes: attributes, selfClosing: selfClosing, metadata: metadata))
                 continue
             }
 
             // Check for `</.` (component close tag, e.g. `</.card>`)
-            if peek() == "<" && peek(offset: 1) == "/" && peek(offset: 2) == "." {
+            if peek() == "<" && peek(offset: 1) == "/" && (peek(offset: 2) == "." || isQualifiedComponentTag(closing: true)) {
                 if !textBuffer.isEmpty {
                     tokens.append(.text(textBuffer, metadata: Metadata(file: file, line: textLine, column: textColumn)))
                     textBuffer = ""
@@ -115,19 +139,22 @@ public struct Tokenizer {
                 let tagColumn = column
                 advance() // <
                 advance() // /
-                advance() // .
-                let name = readComponentName()
+                let local = peek() == "."
+                if local { advance() }
+                let name = try local ? readValidatedComponentName(tagLine: tagLine, tagColumn: tagColumn)
+                    : readQualifiedComponentName(tagLine: tagLine, tagColumn: tagColumn)
                 skipWhitespace()
                 guard peek() == ">" else {
                     throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
                 }
                 advance() // >
+                if syntax == .heex { try closeHTMLElement("." + name) }
                 tokens.append(.componentClose(name: name, metadata: Metadata(file: file, line: tagLine, column: tagColumn)))
                 continue
             }
 
             // Check for `<.` (component open tag, e.g. `<.button>`, `<.card title="Hi" />`)
-            if peek() == "<" && peek(offset: 1) == "." {
+            if peek() == "<" && (peek(offset: 1) == "." || isQualifiedComponentTag(closing: false)) {
                 if !textBuffer.isEmpty {
                     tokens.append(.text(textBuffer, metadata: Metadata(file: file, line: textLine, column: textColumn)))
                     textBuffer = ""
@@ -135,9 +162,13 @@ public struct Tokenizer {
                 let tagLine = line
                 let tagColumn = column
                 advance() // <
-                advance() // .
-                let name = readComponentName()
-                let attributes = try readComponentAttributes(tagLine: tagLine, tagColumn: tagColumn)
+                let local = peek() == "."
+                if local { advance() }
+                let name = try local ? readValidatedComponentName(tagLine: tagLine, tagColumn: tagColumn)
+                    : readQualifiedComponentName(tagLine: tagLine, tagColumn: tagColumn)
+                var attributes = try readComponentAttributes(tagLine: tagLine, tagColumn: tagColumn)
+                let interpolateCurly = try consumeCurlyDirective(in: &attributes,
+                    metadata: Metadata(file: file, line: tagLine, column: tagColumn))
                 skipWhitespace()
                 let selfClosing: Bool
                 if peek() == "/" && peek(offset: 1) == ">" {
@@ -150,12 +181,17 @@ public struct Tokenizer {
                 } else {
                     throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
                 }
+                try TemplateValidation.validateBinding(in: attributes, selfClosing: selfClosing,
+                    metadata: Metadata(file: file, line: tagLine, column: tagColumn))
                 tokens.append(.componentTag(
                     name: name,
                     attributes: attributes,
                     selfClosing: selfClosing,
                     metadata: Metadata(file: file, line: tagLine, column: tagColumn)
                 ))
+                if syntax == .heex && !selfClosing {
+                    openHTMLElement("." + name, line: tagLine, column: tagColumn, interpolateCurly: interpolateCurly)
+                }
                 continue
             }
 
@@ -187,10 +223,10 @@ public struct Tokenizer {
                 } else if peek() == "!" {
                     advance() // !
                     let content = try readUntilClose(tagLine: tagLine, tagColumn: tagColumn)
-                    token = .assigns(content.trimmingWhitespace(), metadata: Metadata(file: file, line: tagLine, column: tagColumn))
+                    token = .assigns(content, metadata: Metadata(file: file, line: tagLine, column: tagColumn))
                 } else if peek() == "#" {
                     advance() // #
-                    let content = try readUntilClose(tagLine: tagLine, tagColumn: tagColumn)
+                    let content = try readUntilClose(tagLine: tagLine, tagColumn: tagColumn, swiftAware: false)
                     token = .comment(content.trimmingWhitespace(), metadata: Metadata(file: file, line: tagLine, column: tagColumn))
                 } else if peek() == "=" {
                     advance() // =
@@ -224,12 +260,18 @@ public struct Tokenizer {
             tokens.append(.text(textBuffer, metadata: Metadata(file: file, line: textLine, column: textColumn)))
         }
 
+        if let metadata = htmlCommentMetadata {
+            throw htmlDiagnostic("unterminated HTML comment", at: metadata)
+        }
+        if let element = htmlElements.last {
+            throw ESWHTMLDiagnostic(metadata: element.metadata, message: "unclosed tag <\(element.name)>")
+        }
         return tokens
     }
 
     // MARK: - Private helpers
 
-    private func peek(offset: Int = 0) -> Character? {
+    func peek(offset: Int = 0) -> Character? {
         var idx = index
         for _ in 0..<offset {
             guard idx < source.endIndex else { return nil }
@@ -240,7 +282,7 @@ public struct Tokenizer {
     }
 
     @discardableResult
-    private mutating func advance() -> Character {
+    mutating func advance() -> Character {
         let c = source[index]
         index = source.index(after: index)
         if c == "\n" {
@@ -269,6 +311,29 @@ public struct Tokenizer {
         throw ESWTokenizerError.unterminatedTag(file: file, line: tagLine, column: tagColumn)
     }
 
+    func isQualifiedComponentTag(closing: Bool) -> Bool {
+        var offset = closing ? 2 : 1
+        guard peek() == "<", let first = peek(offset: offset), first.isUppercase else { return false }
+        while let c = peek(offset: offset), c.isLetter || c.isNumber || c == "_" || c == "." {
+            if c == "." { return true }
+            offset += 1
+        }
+        return false
+    }
+
+    private mutating func readQualifiedComponentName(tagLine: Int, tagColumn: Int) throws -> String {
+        var name = ""
+        while let c = peek(), c.isLetter || c.isNumber || c == "_" || c == "." { name.append(advance()) }
+        let pieces = name.split(separator: ".", omittingEmptySubsequences: false)
+        guard pieces.count > 1, pieces.allSatisfy({ part in
+            guard let first = part.first else { return false }
+            return first.isLetter || first == "_"
+        }) else {
+            throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
+        }
+        return name
+    }
+
     /// Reads a component name: letters, digits, hyphens (e.g. `button`, `user-card`).
     private mutating func readComponentName() -> String {
         var name = ""
@@ -278,11 +343,32 @@ public struct Tokenizer {
         return name
     }
 
+    private mutating func readValidatedComponentName(tagLine: Int, tagColumn: Int) throws -> String {
+        let name = readComponentName()
+        guard let first = name.first, first.isLetter,
+              !name.hasSuffix("-"), !name.contains("--") else {
+            throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
+        }
+        return name
+    }
+
     /// Skips any whitespace characters (space, tab, newline).
-    private mutating func skipWhitespace() {
+    mutating func skipWhitespace() {
         while let c = peek(), c == " " || c == "\t" || c == "\n" || c == "\r" {
             advance()
         }
+    }
+
+    /// The body-only interpolation directive is not a Swift component argument.
+    private func consumeCurlyDirective(in attributes: inout [ComponentAttribute], metadata: Metadata) throws -> Bool {
+        guard syntax == .heex else { return true }
+        let directives = attributes.filter { $0.key.lowercased() == "phx-no-curly-interpolation" }
+        guard !directives.isEmpty else { return true }
+        guard directives.count == 1, directives[0].value == nil else {
+            throw htmlDiagnostic("phx-no-curly-interpolation is a single bare compile-time attribute", at: metadata)
+        }
+        attributes.removeAll { $0.key.lowercased() == "phx-no-curly-interpolation" }
+        return false
     }
 
     /// Reads zero or more component attributes until `/>` or `>`.
@@ -297,17 +383,22 @@ public struct Tokenizer {
             if c == ">" || (c == "/" && peek(offset: 1) == ">") { break }
             // Read attribute key
             let key = readAttributeKey()
-            guard !key.isEmpty else {
+            guard let first = key.first, first.isLetter || first == "_" || (syntax == .heex && first == ":"),
+                  !attrs.contains(where: { $0.key.replacingHyphens() == key.replacingHyphens() }) else {
                 throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
             }
+            let afterKey = index
+            let afterKeyLine = line
+            let afterKeyColumn = column
             skipWhitespace()
             // Check for value
             if peek() == "=" {
                 advance() // =
-                if peek() == "\"" {
+                skipWhitespace()
+                if peek() == "\"" || peek() == "'" {
                     // String literal: attr="value"
-                    advance() // opening "
-                    let value = readStringAttributeValue()
+                    let quote = advance()
+                    let value = try readStringAttributeValue(quote: quote, tagLine: tagLine, tagColumn: tagColumn)
                     attrs.append(ComponentAttribute(key: key, value: .string(value)))
                 } else if peek() == "{" {
                     // Expression: attr={swiftExpr}
@@ -320,6 +411,18 @@ public struct Tokenizer {
             } else {
                 // Bare boolean attribute
                 attrs.append(ComponentAttribute(key: key, value: nil))
+                // Keep the separator available for the next attribute.
+                index = afterKey
+                line = afterKeyLine
+                column = afterKeyColumn
+            }
+            if key.hasPrefix(":") {
+                guard (key == ":if" || key == ":for" || key == ":let"), case .expression = attrs.last?.value else {
+                    throw htmlDiagnostic("component directive '\(key)' requires {expression}")
+                }
+            }
+            if let next = peek(), !next.isWhitespace, next != ">", next != "/" {
+                throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
             }
         }
         return attrs
@@ -328,34 +431,46 @@ public struct Tokenizer {
     /// Reads an attribute key: letters, digits, hyphens, underscores.
     private mutating func readAttributeKey() -> String {
         var key = ""
-        while let c = peek(), c.isLetter || c.isNumber || c == "-" || c == "_" {
+        while let c = peek(), c.isLetter || c.isNumber || c == "-" || c == "_" || (syntax == .heex && c == ":") {
             key.append(advance())
         }
         return key
     }
 
     /// Reads characters until a closing `"`, consuming it. Returns content without quotes.
-    private mutating func readStringAttributeValue() -> String {
+    private mutating func readStringAttributeValue(quote: Character, tagLine: Int, tagColumn: Int) throws -> String {
         var value = ""
-        while let c = peek(), c != "\"" {
+        while let c = peek(), c != quote {
             value.append(advance())
         }
-        if peek() == "\"" { advance() } // closing "
+        guard peek() == quote else {
+            throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
+        }
+        advance()
         return value
     }
 
     /// Reads characters until a matching `}`, consuming it. Handles nested `{}`.
-    private mutating func readExpressionAttributeValue(tagLine: Int, tagColumn: Int) throws -> String {
+    mutating func readExpressionAttributeValue(tagLine: Int, tagColumn: Int) throws -> String {
         var expr = ""
         var depth = 1
         while index < source.endIndex {
+            if let end = SwiftLexicalScanner.opaqueEnd(in: source, at: index) {
+                while index < end { expr.append(advance()) }
+                continue
+            }
             let c = advance()
             if c == "{" {
                 depth += 1
                 expr.append(c)
             } else if c == "}" {
                 depth -= 1
-                if depth == 0 { return expr }
+                if depth == 0 {
+                    guard !expr.trimmingWhitespace().isEmpty else {
+                        throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
+                    }
+                    return expr
+                }
                 expr.append(c)
             } else {
                 expr.append(c)
@@ -364,9 +479,13 @@ public struct Tokenizer {
         throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
     }
 
-    private mutating func readUntilClose(tagLine: Int, tagColumn: Int) throws -> String {
+    private mutating func readUntilClose(tagLine: Int, tagColumn: Int, swiftAware: Bool = true) throws -> String {
         var content = ""
         while index < source.endIndex {
+            if swiftAware, let end = SwiftLexicalScanner.opaqueEnd(in: source, at: index) {
+                while index < end { content.append(advance()) }
+                continue
+            }
             // Check for `%%>` (escaped close → literal `%>` in content)
             if peek() == "%" && peek(offset: 1) == "%" && peek(offset: 2) == ">" {
                 advance() // %
