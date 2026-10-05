@@ -60,7 +60,6 @@ public struct CodeGenerator {
         lines.append("// Source: \(sourceFile)")
         lines.append("")
 
-        // Always import ESW
         lines.append("import ESW")
 
         lines.append(contentsOf: imports.filter { $0 != "import ESW" })
@@ -233,7 +232,7 @@ public struct CodeGenerator {
         switch token {
         case .text(let s, let meta):
             if !s.isEmpty {
-                // Only emit source location for single-line text to avoid breaking multiline string literals
+                // #sourceLocation() inside a multiline string literal is a syntax error
                 if !s.contains("\n") {
                     if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
                 }

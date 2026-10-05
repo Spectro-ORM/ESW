@@ -26,14 +26,10 @@ private func generateExpression(
 @Suite("GenerateExpression")
 struct GenerateExpressionTests {
 
-    @Test func producesIICE() throws {
+    @Test func producesIICEWithoutFileScaffolding() throws {
         let output = try generateExpression("hello")
         #expect(output.hasPrefix("{"))
         #expect(output.hasSuffix("}()"))
-    }
-
-    @Test func noFunctionWrapperOrImports() throws {
-        let output = try generateExpression("hello")
         #expect(!output.contains("func render"))
         #expect(!output.contains("import ESW"))
     }
