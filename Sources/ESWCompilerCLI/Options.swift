@@ -5,8 +5,11 @@ struct Options {
     static let usage = """
     Usage: ESWCompilerCLI <input.esw|input.heex> [--output <file.swift>] [--source-location] [--heex]
            ESWCompilerCLI --batch --root <target-directory> --output <file.swift> <templates...>
+
+    Pass --view-source <file.swift> for each source containing @ESWTemplate views.
     """
     var inputs: [String] = []
+    var viewSources: [String] = []
     var output: String?
     var root: String?
     var sourceLocations = false
@@ -19,12 +22,13 @@ struct Options {
         while index < arguments.count {
             let argument = arguments[index]
             switch argument {
-            case "--output", "--root":
+            case "--output", "--root", "--view-source":
                 guard index + 1 < arguments.count else {
                     throw ESWTemplateError("error: \(argument) requires a path")
                 }
                 index += 1
                 if argument == "--output" { output = arguments[index] }
+                else if argument == "--view-source" { viewSources.append(arguments[index]) }
                 else { root = arguments[index] }
             case "--source-location": sourceLocations = true
             case "--heex": syntax = .heex
@@ -39,7 +43,7 @@ struct Options {
             index += 1
         }
         if help { return }
-        guard !inputs.isEmpty, batch || inputs.count == 1 else {
+        guard batch || inputs.count == 1 else {
             throw ESWTemplateError("error: supply one template, or use --batch for multiple templates\n" + Self.usage)
         }
         guard !batch || syntax == nil else {

@@ -1,8 +1,10 @@
+/// An ordinary token or a resolved component subtree consumed by the generator.
 public indirect enum RenderNode: Equatable, Sendable {
     case token(Token)
     case component(ComponentNode)
 }
 
+/// One parsed named slot entry, before it becomes string or typed deferred content.
 public struct Slot: Equatable, Sendable {
     public let name: String
     public let nodes: [RenderNode]
@@ -18,6 +20,7 @@ public struct Slot: Equatable, Sendable {
     }
 }
 
+/// A component call with attributes, named entries, and optional default content.
 public struct ComponentNode: Equatable, Sendable {
     public let name: String
     public let attributes: [ComponentAttribute]

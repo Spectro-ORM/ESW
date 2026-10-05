@@ -19,7 +19,8 @@ public struct InlineESWMacro: ExpressionMacro {
         in context: some MacroExpansionContext
     ) throws -> ExprSyntax {
         let macroName = "#" + node.macroName.text
-        let syntax: TemplateSyntax = node.macroName.text == "heex" ? .heex : .esw
+        let live = node.macroName.text == "live"
+        let syntax: TemplateSyntax = node.macroName.text == "heex" || live ? .heex : .esw
         guard let firstArg = node.arguments.first else {
             throw ESWMacroError("\(macroName) requires a template string as its first argument")
         }
@@ -40,6 +41,7 @@ public struct InlineESWMacro: ExpressionMacro {
         guard let source = lit.representedLiteralValue else {
             throw ESWMacroError("Invalid template string literal")
         }
-        return try RenderMacro.expand(source: source, file: "<inline>", syntax: syntax)
+        let expression = try compileExpression(source: source, syntax: syntax, live: live)
+        return "\(raw: expression)"
     }
 }

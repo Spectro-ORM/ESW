@@ -1,11 +1,16 @@
 import SwiftParser
 import SwiftSyntax
 
+/// A typed input parsed from a template's front-matter declaration block.
 public struct Parameter: Equatable, Sendable {
+    /// The Swift parameter name.
     public let name: String
+    /// The declared Swift type, retained as source text.
     public let type: String
+    /// An optional default expression, retained as source text.
     public let defaultValue: String?
 
+    /// Creates a parameter description for source generation.
     public init(name: String, type: String, defaultValue: String? = nil) {
         self.name = name
         self.type = type
@@ -15,15 +20,21 @@ public struct Parameter: Equatable, Sendable {
 
 /// Declarations shared by generated functions and inline expansion.
 public struct TemplateDeclarations: Equatable, Sendable {
+    /// Parameters in their declared order.
     public let parameters: [Parameter]
+    /// Explicit import statements for generated Swift files.
     public let imports: [String]
 }
 
+/// Parses typed `var`/`let` parameters and imports from an initial `<%! ... %>` block.
 public enum AssignsParser {
+    /// Parses parameters without returning the header's imports.
     public static func parse(tokens: [Token], file: String) throws -> [Parameter] {
         try declarations(tokens: tokens, file: file).parameters
     }
 
+    /// Parses a single initial header; returns empty declarations when there is none.
+    /// - Throws: ``ESWAssignsError`` for misplaced blocks or unsupported declarations.
     public static func declarations(tokens: [Token], file: String) throws -> TemplateDeclarations {
         var foundPriorContent = false
         var header: (String, Metadata)?

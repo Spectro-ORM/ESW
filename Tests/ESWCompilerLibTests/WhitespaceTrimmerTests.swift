@@ -22,6 +22,8 @@ private enum TokenKind: Equatable {
     case slotClose(String)
     case htmlAttribute(String, String)
     case htmlAttributes(String)
+    case keyedOpen(String, String, String?)
+    case keyedClose(Bool)
 }
 
 private func kinds(_ tokens: [Token]) -> [TokenKind] {
@@ -39,6 +41,8 @@ private func kinds(_ tokens: [Token]) -> [TokenKind] {
         case .slotClose(let name, _): .slotClose(name)
         case .htmlAttribute(let name, let expression, _): .htmlAttribute(name, expression)
         case .htmlAttributes(let expression, _): .htmlAttributes(expression)
+        case .keyedOpen(let loop, let key, let condition, _): .keyedOpen(loop, key, condition)
+        case .keyedClose(let conditional, _): .keyedClose(conditional)
         }
     }
 }

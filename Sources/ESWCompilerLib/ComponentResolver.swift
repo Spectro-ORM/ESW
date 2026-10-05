@@ -1,8 +1,10 @@
 /// Resolves components and slots with one cursor. Nested components own their
 /// slots; siblings and trailing text remain in their enclosing scope.
+/// Pairs component and slot tags into nested render nodes and validates their structure.
 public struct ComponentResolver {
     public typealias ResolverError = ESWComponentError
 
+    /// Resolves a token sequence, rejecting malformed nesting and slot usage.
     public static func resolve(_ tokens: [Token]) throws -> [RenderNode] {
         var parser = Parser(tokens: tokens)
         var nodes: [RenderNode] = []

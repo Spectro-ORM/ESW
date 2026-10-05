@@ -1,3 +1,5 @@
+/// Scans template text into located tokens, optionally validating HTML structure.
+/// A tokenizer advances through its input; create a new value to scan it again.
 public struct Tokenizer {
     let source: String
     let file: String
@@ -8,6 +10,8 @@ public struct Tokenizer {
     var htmlElements: [HTMLElement] = []
     var htmlCommentMetadata: Metadata?
 
+    /// Creates a scanner, normalizing CRLF and CR line endings to LF.
+    /// `file` is used for diagnostics; this initializer does not read a file.
     public init(source: String, file: String = "<anonymous>", syntax: TemplateSyntax = .esw) {
         // Normalize line endings: \r\n → \n, bare \r → \n.
         // Swift treats \r\n as a single Character (grapheme cluster), so we
@@ -35,6 +39,8 @@ public struct Tokenizer {
         self.syntax = syntax
     }
 
+    /// Consumes the remaining input and returns its located tokens.
+    /// - Throws: A tokenizer or HTML diagnostic for malformed template structure.
     public mutating func tokenize() throws -> [Token] {
         var tokens: [Token] = []
         var textBuffer = ""
@@ -122,6 +128,9 @@ public struct Tokenizer {
                 }
                 advance()
                 try TemplateValidation.validateBinding(in: attributes, selfClosing: selfClosing, metadata: metadata)
+                if attributes.contains(where: { $0.key == ":key" }) {
+                    throw htmlDiagnostic(":key is not supported on slots; use it on an element or component with :for", at: metadata)
+                }
                 if syntax == .heex && !selfClosing {
                     openHTMLElement(":" + name, line: tagLine, column: tagColumn, interpolateCurly: interpolateCurly)
                 }
@@ -417,13 +426,17 @@ public struct Tokenizer {
                 column = afterKeyColumn
             }
             if key.hasPrefix(":") {
-                guard (key == ":if" || key == ":for" || key == ":let"), case .expression = attrs.last?.value else {
+                guard (key == ":if" || key == ":for" || key == ":let" || key == ":key"), case .expression = attrs.last?.value else {
                     throw htmlDiagnostic("component directive '\(key)' requires {expression}")
                 }
             }
             if let next = peek(), !next.isWhitespace, next != ">", next != "/" {
                 throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
             }
+        }
+        if attrs.contains(where: { $0.key == ":key" }), !attrs.contains(where: { $0.key == ":for" }) {
+            throw htmlDiagnostic(":key requires :for on the same component or element",
+                                 at: Metadata(file: file, line: tagLine, column: tagColumn))
         }
         return attrs
     }

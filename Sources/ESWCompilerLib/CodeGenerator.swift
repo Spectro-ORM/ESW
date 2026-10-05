@@ -1,3 +1,5 @@
+/// Emits Swift from a resolved render tree and parsed template declarations.
+/// Prefer the top-level compile functions when starting from template text.
 public struct CodeGenerator {
     private let renderNodes: [RenderNode]
     private let parameters: [Parameter]
@@ -5,16 +7,21 @@ public struct CodeGenerator {
     private let filename: String
     private let emitSourceLocations: Bool
     private let imports: [String]
+    private let view: TemplateView?
     private let generatedBufferName: String
     private let slotValueName: String
+    private let keyedBufferName: String
 
+    /// Creates a generator for a previously parsed and resolved template.
+    /// Logical filenames control generated names and the `.live.heex` return type.
     public init(
         renderNodes: [RenderNode],
         parameters: [Parameter],
         sourceFile: String,
         filename: String,
         emitSourceLocations: Bool = true,
-        imports: [String] = []
+        imports: [String] = [],
+        view: TemplateView? = nil
     ) {
         self.renderNodes = renderNodes
         self.parameters = parameters
@@ -22,18 +29,20 @@ public struct CodeGenerator {
         self.filename = filename
         self.emitSourceLocations = emitSourceLocations
         self.imports = imports
+        self.view = view
         let source = Self.sourceText(nodes: renderNodes, parameters: parameters)
         self.generatedBufferName = Self.freshIdentifier("_buf", avoiding: source)
         self.slotValueName = Self.freshIdentifier("__esw_slot_value", avoiding: source)
+        self.keyedBufferName = Self.freshIdentifier("__esw_rows", avoiding: source)
     }
 
     /// Returns a self-contained immediately-invoked closure expression that
     /// builds and returns the rendered template buffer.
-    public func generateExpression() -> String {
+    public func generateExpression(live: Bool = false) -> String {
         var lines: [String] = []
         let bufferName = generatedBufferName
         lines.append("{")
-        lines.append("    var \(bufferName) = ESWBuffer()")
+        lines.append("    var \(bufferName) = \(live ? "ESWLiveBuffer" : "ESWBuffer")()")
         let emittedLocation = emitNodeBody(&lines, nodes: renderNodes, bufferName: bufferName)
         if emitSourceLocations && emittedLocation {
             lines.append("    #sourceLocation()")
@@ -43,6 +52,7 @@ public struct CodeGenerator {
         return lines.joined(separator: "\n")
     }
 
+    /// Emits imports and a named renderer, or an extension for a supplied typed view.
     public func generate() -> String {
         var lines: [String] = []
 
@@ -62,10 +72,20 @@ public struct CodeGenerator {
 
         lines.append("")
 
-        generateStringFunction(&lines)
-        if Naming.isPartial(filename) {
+        if let view {
+            lines.append("extension \(view.typeName) {")
+            lines.append("    \(view.accessModifier)func render() -> \(returnType) {")
+            var body: [String] = []
+            generateRenderBody(&body)
+            lines.append(contentsOf: body.map { "    " + $0 })
+            lines.append("    }")
+            lines.append("}")
+        } else {
+            generateStringFunction(&lines)
+        }
+        if view == nil, Naming.isPartial(filename) {
             lines.append("")
-            lines.append("func \(Naming.bufferFunctionName(from: filename))(\(buildParamList())) -> String {")
+            lines.append("func \(Naming.bufferFunctionName(from: filename))(\(buildParamList())) -> \(returnType) {")
             let arguments = parameters.map {
                 let name = Self.escapedParamName($0.name.replacingHyphens())
                 return "\(name): \(name)"
@@ -78,24 +98,31 @@ public struct CodeGenerator {
     }
 
     private func generateStringFunction(_ lines: inout [String]) {
-        let bufferName = generatedBufferName
         let funcName = Naming.functionName(from: filename)
         let paramList = buildParamList()
         if paramList.isEmpty {
-            lines.append("func \(funcName)() -> String {")
+            lines.append("func \(funcName)() -> \(returnType) {")
         } else {
             lines.append("func \(funcName)(")
             lines.append("    \(paramList)")
-            lines.append(") -> String {")
+            lines.append(") -> \(returnType) {")
         }
-        lines.append("    var \(bufferName) = ESWBuffer()")
+        generateRenderBody(&lines)
+        lines.append("}")
+    }
+
+    private func generateRenderBody(_ lines: inout [String]) {
+        let bufferName = generatedBufferName
+        lines.append("    var \(bufferName) = \(isLiveFile ? "ESWLiveBuffer" : "ESWBuffer")()")
         let emittedLocation = emitNodeBody(&lines, nodes: renderNodes, bufferName: bufferName)
         if emitSourceLocations && emittedLocation {
             lines.append("#sourceLocation()")
         }
         lines.append("    return \(bufferName).finalize()")
-        lines.append("}")
     }
+
+    private var isLiveFile: Bool { filename.hasSuffix(".live.heex") }
+    private var returnType: String { isLiveFile ? "ESWLiveRender" : "String" }
 
     private func buildParamList() -> String {
         return parameters.map { param in
@@ -127,7 +154,7 @@ public struct CodeGenerator {
     @discardableResult
     private func emitComponentNode(_ lines: inout [String], node: ComponentNode, bufferName: String) -> Bool {
         let emittedLocation = emitSourceLocation(lines: &lines, node.metadata)
-        let directives = emitDirectives(&lines, attributes: node.attributes)
+        let directives = emitDirectives(&lines, attributes: node.attributes, bufferName: bufferName)
         let attributes = node.attributes.filter { !$0.key.hasPrefix(":") }.map(componentArgument)
         let slots = Dictionary(grouping: node.namedSlots, by: \.name).sorted { $0.key < $1.key }
         let hasSlots = !slots.isEmpty || !node.defaultSlot.isEmpty
@@ -164,7 +191,7 @@ public struct CodeGenerator {
             }
             lines.append("    ))")
         }
-        for _ in 0..<directives { lines.append("    }") }
+        lines.append(contentsOf: directives)
         return emittedLocation
     }
 
@@ -177,14 +204,14 @@ public struct CodeGenerator {
 
     private func emitSlotEntry(_ lines: inout [String], slot: Slot) {
         emitSourceLocation(lines: &lines, slot.metadata)
-        let directives = emitDirectives(&lines, attributes: slot.attributes)
+        let directives = emitDirectives(&lines, attributes: slot.attributes, bufferName: generatedBufferName)
         let arguments = slot.attributes.filter { !$0.key.hasPrefix(":") }.map(componentArgument).joined(separator: ", ")
         let binding = TemplateValidation.binding(in: slot.attributes)
         lines.append("            ESWSlot(attributes: .init(\(arguments))) { \(binding == nil ? "_" : slotValueName) in")
         if let binding { lines.append("                let \(binding) = \(slotValueName)") }
         emitContent(&lines, nodes: slot.nodes)
         lines.append("            }")
-        for _ in 0..<directives { lines.append("    }") }
+        lines.append(contentsOf: directives)
     }
 
     private func componentCallee(_ name: String) -> String {
@@ -229,6 +256,11 @@ public struct CodeGenerator {
         case .htmlAttributes(let expression, let meta):
             if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
             lines.append("    \(bufferName).appendUnsafe(ESW.attributes(\(expression)))")
+        case .keyedOpen(let loop, let key, let condition, let meta):
+            if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
+            emitKeyedOpening(&lines, loop: loop, key: key, condition: condition, bufferName: bufferName)
+        case .keyedClose(let conditional, _):
+            lines.append(contentsOf: keyedClosing(conditional: conditional))
         case .code(let code, let meta):
             if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
             lines.append("    \(code)")
@@ -237,17 +269,27 @@ public struct CodeGenerator {
         case .componentTag(let name, let attributes, _, let meta):
             if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
             let callee = componentCallee(name)
-            let directives = emitDirectives(&lines, attributes: attributes)
+            let directives = emitDirectives(&lines, attributes: attributes, bufferName: bufferName)
             let argList = buildComponentArgList(attributes)
             lines.append("    \(bufferName).appendUnsafe(\(callee)(\(argList)))")
-            for _ in 0..<directives { lines.append("    }") }
+            lines.append(contentsOf: directives)
         }
         return emittedLocation
     }
 
     // MARK: - Component helpers
 
-    private func emitDirectives(_ lines: inout [String], attributes: [ComponentAttribute]) -> Int {
+    private func emitDirectives(_ lines: inout [String], attributes: [ComponentAttribute], bufferName: String) -> [String] {
+        func expression(_ key: String) -> String? {
+            guard let attribute = attributes.first(where: { $0.key == key }),
+                  case .expression(let value) = attribute.value else { return nil }
+            return value
+        }
+        if let key = expression(":key"), let loop = expression(":for") {
+            let condition = expression(":if")
+            emitKeyedOpening(&lines, loop: loop, key: key, condition: condition, bufferName: bufferName)
+            return keyedClosing(conditional: condition != nil)
+        }
         var count = 0
         for (key, keyword) in [(":for", "for"), (":if", "if")] {
             if let attribute = attributes.first(where: { $0.key == key }), case .expression(let expression) = attribute.value {
@@ -255,7 +297,18 @@ public struct CodeGenerator {
                 count += 1
             }
         }
-        return count
+        return Array(repeating: "    }", count: count)
+    }
+
+    private func emitKeyedOpening(_ lines: inout [String], loop: String, key: String, condition: String?, bufferName: String) {
+        lines.append("    \(bufferName).appendKeyed { \(keyedBufferName) in")
+        lines.append("    for \(loop) {")
+        if let condition { lines.append("    if \(condition) {") }
+        lines.append("    \(keyedBufferName).append(key: \(key)) { \(bufferName) in")
+    }
+
+    private func keyedClosing(conditional: Bool) -> [String] {
+        Array(repeating: "    }", count: conditional ? 4 : 3)
     }
 
     private func kebabToPascalCase(_ name: String) -> String {
@@ -305,6 +358,8 @@ public struct CodeGenerator {
                          .code(let value, _), .comment(let value, _), .assigns(let value, _),
                          .htmlAttributes(let value, _): fragments.append(value)
                     case .htmlAttribute(let name, let expression, _): fragments += [name, expression]
+                    case .keyedOpen(let loop, let key, let condition, _): fragments += [loop, key, condition ?? ""]
+                    case .keyedClose: break
                     case .componentTag(let name, let values, _, _), .slotOpen(let name, let values, _, _):
                         fragments.append(name)
                         attributes(values)

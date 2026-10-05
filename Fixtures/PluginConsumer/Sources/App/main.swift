@@ -101,7 +101,28 @@ let table = renderUsersTable(people: [Person(name: "<Ada>")], showDetails: false
 assert(table.contains("<th>Name</th>"))
 assert(!table.contains("Details"))
 assert(table.contains("<td><b>&lt;Ada&gt;</b></td>"))
-if let marker = CommandLine.arguments.dropFirst().first {
+let liveCounter = renderCounterLive(count: 1)
+assert(liveCounter.html.contains("<output>1</output>"))
+assert(liveCounter.diff(to: renderCounterLive(count: 2)).dynamics == ["0": "2"])
+if let marker = CommandLine.arguments.dropFirst().first, marker != "--typed-template", marker != "--keyed-wire" {
     assert(renderPostsIndex(posts: []).contains(marker), "A template-only edit must update the compiled renderer")
 }
-print("All ESW, HEEx, macro, namespaced template, and typed slot fixture assertions passed.")
+let registration = RegistrationView(email: "<Ada>", csrfToken: "\"token", error: "<Oops>").render()
+assert(registration.contains("<h1>Register</h1>"))
+assert(registration.contains("<p role=\"alert\">&lt;Oops&gt;</p>"))
+assert(registration.contains("value=\"&lt;Ada&gt;\""))
+assert(registration.contains("value=\"&quot;token\""))
+assert(registration.contains("<p>&lt;ADA&gt;</p>"))
+assert(registration.contains("<time>0</time>"), "Companion imports must be available in generated methods")
+assert(!RegistrationView(email: "", csrfToken: "", error: nil).render().contains("role=\"alert\""))
+assert(TypedCard(value: 42).render().contains("<p>42</p>"))
+assert(!TypedCard(value: "<hidden>", show: false).render().contains("<article"))
+assert(TypedCounter(count: 1).render().diff(to: TypedCounter(count: 2).render()).dynamics == ["0": "2"])
+if CommandLine.arguments.dropFirst().first == "--typed-template",
+   let marker = CommandLine.arguments.dropFirst(2).first {
+    assert(registration.contains(marker), "A typed template-only edit must update render()")
+}
+print("All ESW, HEEx, macro, namespaced template, typed view, and typed slot fixture assertions passed.")
+if CommandLine.arguments.dropFirst().first == "--keyed-wire" {
+    print("KEYED_WIRE:" + (try keyedWireFixture()))
+}

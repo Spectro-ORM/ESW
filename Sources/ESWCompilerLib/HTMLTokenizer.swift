@@ -2,6 +2,7 @@ struct HTMLElement {
     let name: String
     let metadata: Metadata
     let directives: Int
+    let keyed: Bool
     let interpolateCurly: Bool
 }
 
@@ -15,10 +16,10 @@ extension Tokenizer {
         ESWHTMLDiagnostic(metadata: metadata ?? Metadata(file: file, line: line, column: column), message: message)
     }
 
-    mutating func openHTMLElement(_ name: String, line: Int, column: Int, directives: Int = 0, interpolateCurly: Bool = true) {
+    mutating func openHTMLElement(_ name: String, line: Int, column: Int, directives: Int = 0, keyed: Bool = false, interpolateCurly: Bool = true) {
         let inherited = htmlElements.last?.interpolateCurly ?? true
         htmlElements.append(HTMLElement(name: name, metadata: Metadata(file: file, line: line, column: column),
-                                        directives: directives, interpolateCurly: inherited && interpolateCurly))
+                                        directives: directives, keyed: keyed, interpolateCurly: inherited && interpolateCurly))
     }
 
     @discardableResult
@@ -95,7 +96,7 @@ extension Tokenizer {
             guard peek() == ">" else { throw htmlDiagnostic("malformed closing tag", at: metadata) }
             advance()
             let element = try closeHTMLElement(name, at: metadata)
-            return [.text("</\(sourceName)>", metadata: metadata)] + closingDirectives(element.directives, metadata: metadata)
+            return [.text("</\(sourceName)>", metadata: metadata)] + closingDirectives(element.directives, keyed: element.keyed, metadata: metadata)
         }
         guard let next = peek(offset: 1), next.isLetter else { return nil }
         return try readHTMLOpen(metadata: metadata)
@@ -128,6 +129,7 @@ extension Tokenizer {
         var keys = Set<String>()
         var condition: String?
         var loop: String?
+        var identity: String?
         var interpolateCurly = name != "script" && name != "style"
         while index < source.endIndex {
             let separated = peek()?.isWhitespace == true
@@ -179,6 +181,7 @@ extension Tokenizer {
                 switch key {
                 case ":if": condition = expression
                 case ":for": loop = expression
+                case ":key": identity = expression
                 default:
                     guard !key.hasPrefix(":") else { throw htmlDiagnostic("unsupported directive '\(key)'", at: attrMetadata) }
                     tokens.append(.htmlAttribute(name: key, expression: expression, metadata: attrMetadata))
@@ -206,16 +209,23 @@ extension Tokenizer {
         advance()
         tokens.append(.text(selfClosing ? " />" : ">", metadata: metadata))
         var opening: [Token] = []
-        if let loop { opening.append(.code("+for \(loop) {", metadata: metadata)) }
-        if let condition { opening.append(.code("+if \(condition) {", metadata: metadata)) }
-        if selfClosing || Self.voidElements.contains(name) {
-            return opening + tokens + closingDirectives(opening.count, metadata: metadata)
+        if let identity {
+            guard let loop else { throw htmlDiagnostic(":key requires :for on the same element", at: metadata) }
+            opening.append(.keyedOpen(loop: loop, key: identity, condition: condition, metadata: metadata))
+        } else {
+            if let loop { opening.append(.code("+for \(loop) {", metadata: metadata)) }
+            if let condition { opening.append(.code("+if \(condition) {", metadata: metadata)) }
         }
-        openHTMLElement(name, line: metadata.line, column: metadata.column, directives: opening.count, interpolateCurly: interpolateCurly)
+        let directives = (loop == nil ? 0 : 1) + (condition == nil ? 0 : 1)
+        if selfClosing || Self.voidElements.contains(name) {
+            return opening + tokens + closingDirectives(directives, keyed: identity != nil, metadata: metadata)
+        }
+        openHTMLElement(name, line: metadata.line, column: metadata.column, directives: directives, keyed: identity != nil, interpolateCurly: interpolateCurly)
         return opening + tokens
     }
 
-    private func closingDirectives(_ count: Int, metadata: Metadata) -> [Token] {
-        (0..<count).map { _ in .code("+}", metadata: metadata) }
+    private func closingDirectives(_ count: Int, keyed: Bool, metadata: Metadata) -> [Token] {
+        if keyed { return [.keyedClose(conditional: count == 2, metadata: metadata)] }
+        return (0..<count).map { _ in .code("+}", metadata: metadata) }
     }
 }

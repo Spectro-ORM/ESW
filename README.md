@@ -1,6 +1,16 @@
 # ESW
 
-**Peregrine’s HTML template engine: editable HTML, compiled Swift expressions, and typed components.**
+**HTML templates for Swift: editable HTML, compiled expressions, typed components, and live rendering.**
+
+## Library documentation
+
+Start with the [library documentation index](Documentation/README.md) for the
+`ESW`, `ESWLive`, and `ESWCompilerLib` guides and API references. Build a browsable
+DocC site for the current checkout with:
+
+```sh
+python3 scripts/build_docs.py
+```
 
 ---
 
@@ -47,23 +57,66 @@ func renderUsers(users: [User]) -> String {
 
 ---
 
+## Feature Coverage: EEx, HEEx, and LiveView
+
+ESW covers everyday EEx-style templates and HEEx-style HTML authoring with Swift
+expressions. `ESWLive` adds a smaller live runtime. These are separate layers:
+`.esw` corresponds to EEx, `.heex` to HEEx authoring, and `ESWLive` plus an HTTP
+adapter to LiveView. Templates and browser protocols are not interchangeable
+with Phoenix.
+
+| Template capability | ESW support |
+| --- | --- |
+| Expressions, conditions, loops, escaped output and explicit raw HTML | Implemented with Swift |
+| Compile templates into functions | Build plugin and macros |
+| Separate view logic and template | `@ESWTemplate` on ordinary Swift structs; no template header required |
+| HTML validation, dynamic/boolean attributes, class lists and attribute spreads | Implemented in HEEx mode |
+| `:if` / `:for`, function components, default/named/repeated/bound slots | Implemented; arguments follow Swift ordering and type checking |
+| Keyed comprehensions with `:key` | Implemented on HTML elements and function components with `:for`; nested lists supported |
+| Editor tooling | Neovim syntax highlighting; dedicated template formatter and LSP missing |
+| EEx runtime evaluation and customizable engine API | No equivalent public API |
+
+| Live capability | ESWLive support |
+| --- | --- |
+| Initial server rendering, server-owned state, serialized async event handling | Implemented |
+| Browser transport | SSE updates and POST events; its own protocol |
+| Click, submit, change and debounce bindings | Implemented basic bindings |
+| Focus, selection, dirty-input preservation, reconnect and event retries | Implemented |
+| Incremental rendering | Changed dynamic values and keyed row patches; every Swift expression still evaluates |
+| Assign dependency tracking and general component render trees | Missing; string-returning components remain opaque fragments |
+| Nested stateful live components, streams and live navigation | Missing |
+| Integrated live uploads, Phoenix-style JS hooks/commands and managed async assignments | Missing |
+
+Roost owns HTTP conveniences: `conn.render` supplies form context and layout,
+and `<.form>` handles CSRF and method overrides. Field binding and nested forms
+equivalent to Phoenix's `to_form` / `inputs_for` remain missing. The Roost live
+adapter currently lives in Roost Playground; this repository's development
+adapter retains the old Peregrine API, and the ordinary/live Roost rendering
+paths still need consolidation.
+
+References: [EEx](https://hexdocs.pm/eex/EEx.html),
+[HEEx components and keyed comprehensions](https://hexdocs.pm/phoenix_live_view/Phoenix.Component.html),
+[LiveView](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.html), and
+[Phoenix's rendering engine](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.Engine.html).
+See [the ESW live guide](Documentation/LiveView.md) for lifecycle and runtime limits.
+
 ## Quick Start
 
 ### Installation
 
-These APIs are under development in this checkout. For a Peregrine app using this implementation, add a local dependency to `Package.swift`:
+Add ESW to your application's `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(path: "../esw"),
+    .package(url: "https://github.com/Spectro-ORM/ESW.git", from: "1.5.0"),
 ]
 ```
 
 ### Choose Your Integration
 
-### Option A: Build Plugin (Recommended for Peregrine)
+### Option A: Build Plugin (Recommended for File Templates)
 
-The plugin compiles `.esw` and `.heex` files into `String`-returning functions. Template files are explicit build inputs, so editing a template rebuilds its renderer.
+The plugin compiles `.esw` and `.heex` files into `String`-returning functions. Opt-in `.live.heex` files return `ESWLiveRender` snapshots. Template files are explicit build inputs, so editing a template rebuilds its renderer.
 
 ```swift
 targets: [
@@ -133,6 +186,12 @@ return conn.html(renderGreeting(name: "World"))
 
 ---
 
+## Editor Support
+
+The [Neovim plugin](editors/nvim) highlights HTML and embedded Swift in `.esw`
+templates and recognizes ESW's `.heex` templates within Swift packages. It reuses
+Neovim's built-in syntax files and preserves Phoenix HEEx file detection.
+
 ## Syntax Reference
 
 | Tag | Purpose | Example |
@@ -174,6 +233,7 @@ var show: Bool = true
 | `{attributes}` inside a tag | Expands a `[String: Any?]` map in sorted key order |
 | `:if={condition}` | Conditionally renders an element or component |
 | `:for={item in items}` | Repeats an element or component |
+| `:key={item.id}` with `:for` | Gives each repeated element/component a stable live-render identity |
 
 When both directives appear, `:for` creates the scope for `:if`, regardless of their attribute order:
 
@@ -181,11 +241,92 @@ When both directives appear, `:for` creates the scope for `:if`, regardless of t
 <li :if={item.count > 0} :for={item in items}>{item.name}</li>
 ```
 
+Use `:key` to keep list updates small in `#live` and `.live.heex` templates:
+
+```html
+<ul>
+  <li :for={item in items} :key={item.id} id={"item-\(item.id)"}>
+    {item.name}
+  </li>
+</ul>
+```
+
+Prepending sends the new row, reordering sends the new key order, and editing a
+row sends its changed dynamic values. Nested keyed lists retain their own scopes.
+Keys must be stable and have unique JSON encodings within their list; Swift
+`Encodable` values such as strings, integers and UUIDs work. Duplicate or
+unencodable keys fall back to a complete HTML fragment without dropping rows.
+`:key` requires `:for` on the same element or component and is not supported on
+slots. It does not emit an HTML attribute: use explicit stable `id` attributes
+for DOM identity and focus preservation. Ordinary `#heex` / `.heex` renderers
+produce the same HTML with or without `:key`.
+
 The existing `<% ... %>` tags, components, and string slots also work in HEEx mode. Use `title={expression}` for dynamic HTML attributes; embedded `<%= ... %>` inside a quoted attribute is rejected. Attribute values are always escaped, including values marked with `render(...)`.
 
 HTML mode reports unclosed or mismatched tags, duplicate attributes, and malformed directives with source locations. Non-void elements need closing tags or `/>`. HTML comments and the bodies of `<script>` and `<style>` keep braces literal while still evaluating `<% ... %>` tags and processing escaped EEx delimiters. A bare `phx-no-curly-interpolation` attribute applies that brace rule to an HTML element, component, or slot body and its descendants; dynamic attributes and EEx tags still work, and the control attribute is removed from the output. Use `\{` and `\}` for literal braces in body text (in a Swift literal, use a raw string or escape the backslash).
 
 `.esw` files retain their text-template behavior: literal braces and HTML fragments are allowed. HEEx mode is a Swift template syntax inspired by Phoenix; it does not include LiveView state, diffing, or events.
+
+### Typed Views (No Template Header)
+
+Associate an ordinary Swift file with a template using `@ESWTemplate`:
+
+```swift
+// Views/auth/RegisterView.swift
+import ESW
+
+@ESWTemplate("register.esw")
+struct RegisterView {
+    var email: String = ""
+    var error: String? = nil
+
+    var heading: String { "Create your account" }
+}
+```
+
+`register.esw` starts directly with HTML and uses the view's members:
+
+```html
+<h1><%= heading %></h1>
+<% if let error { %>
+  <p role="alert"><%= error %></p>
+<% } %>
+<p>Email: <%= email %></p>
+```
+
+The annotation adds `ESWView` conformance. **ESWBuildPlugin must be enabled on the
+same target**: it generates `RegisterView.render()` in an extension. The macro
+never reads template files, so edits to a template reliably trigger recompilation.
+
+```swift
+let html = RegisterView(email: "reader@example.test").render()
+```
+
+Template paths are relative to the declaring Swift file and must identify a template
+in the same target. A file may contain several annotated, unconditional top-level
+structs and ordinary helper declarations. Each template belongs to one view.
+Swift owns initializers, types, defaults, generics, computed properties and helpers.
+Imports, including conditional imports, are copied into the generated file.
+Members referenced by the template must be internal, package or public; separate
+extensions cannot access `private` or `fileprivate` members. A public or package
+view gets the same `render()` access level.
+
+`.esw` and `.heex` views return `String`; `.live.heex` views return `ESWLiveRender`.
+The build plugin tracks all target Swift sources and template files, including
+when annotations are added, removed or changed. Standalone CLI use is explicit:
+
+```sh
+ESWCompilerCLI Views/auth/register.esw --view-source Views/auth/RegisterView.swift
+```
+
+Remove parameter blocks from associated templates. Typed templates generate methods
+instead of legacy free functions or partial aliases. Existing header-based templates
+and inline macros remain supported. The earlier experimental `.esw.swift` filename
+pairing is replaced by this annotation.
+
+HTTP request data belongs to the web framework. Roost's `try conn.render(view)`
+supplies form context and the configured layout; its `<.form>` component handles
+CSRF and method overrides without adding `csrfToken` or `conn` to page views.
 
 ### Template Parameters
 
@@ -393,7 +534,9 @@ Named slots retain their own scope; a default slot’s binding does not leak int
 
 ## Macros
 
-ESW provides three Swift macros for template rendering.
+ESW provides expression macros for string and live rendering, plus an attached
+`@ESWTemplate` macro for typed file views. The examples below cover string macros;
+see the library guides for the complete reference.
 
 ### `#render` — File Templates
 
@@ -637,12 +780,53 @@ error: #render expects a file path (e.g. #render("template.esw")), not inline HT
 
 ---
 
+## Live Rendering and Events
+
+`#live` uses the same HTML validation, Swift expressions, components, and escaping as `#heex`, while keeping static HTML separate from dynamic values:
+
+```swift
+import ESWLive
+
+struct Counter: LiveView {
+    func mount(_ context: LiveContext) async throws -> Int { 0 }
+
+    func handleEvent(_ event: LiveEvent, state: Int) async throws -> Int {
+        guard event.name == "increment" else { throw LiveError.invalidEvent }
+        return state + 1
+    }
+
+    func render(_ count: Int) -> ESWLiveRender {
+        #live("<button esw-click=\"increment\">Count: {count}</button>")
+    }
+}
+```
+
+The separate `ESWLivePeregrine` development adapter demonstrates initial pages, SSE render updates, and CSRF-protected POST events. It includes local browser assets, form bindings, DOM reconciliation, reconnect snapshots, and retained event IDs for retries. It still targets the pre-rename Peregrine API; current Roost checkouts need the adapter in Roost Playground or a corresponding migration.
+
+With this repository and compatible Peregrine/Nexus checkouts as siblings:
+
+```bash
+./scripts/live_demo.sh
+# Open http://localhost:8097
+```
+
+The launcher builds in the local cache outside the checkout, avoiding Finder metadata signing failures when the sources are in a synced `Documents` folder. See [the live rendering guide](Documentation/LiveView.md) for integration, lifecycle, bindings, tests, and limitations. This is an initial implementation with process-local state and its own protocol.
+
 ## Development
 
 ### Run Tests
 
 ```bash
 swift test
+```
+
+The keyed-render check compiles real file templates, checks Swift/JavaScript wire
+agreement and runs the browser client against a local fixture server. It does not
+require the legacy framework adapter:
+
+```bash
+npm ci --prefix BrowserTests
+npm run test:keyed --prefix BrowserTests
 ```
 
 ### Test Build Plugin Fixture
@@ -692,6 +876,7 @@ swift-esw/
 │   │   ├── CodeGenerator.swift       # Swift code generation
 │   │   └── Compiler.swift
 │   ├── ESWMacros/            # Macro implementations
+│   ├── ESWLive/              # Live sessions, events, and browser assets
 │   └── ESWCompilerCLI/       # Standalone CLI
 ├── Plugins/ESWBuildPlugin/   # SPM plugin
 ├── Tests/                    # Compiler and runtime tests
@@ -729,4 +914,4 @@ MIT
 
 ## Design and Compatibility
 
-See [the engine design](Documentation/TemplateEngine.md) for implementation boundaries and [the EEx/HEEx comparison](Documentation/HEExParity.md) for primary-source research. ESW uses Swift expressions and returns complete HTML strings. LiveView-style diffs, event transport, asynchronous rendering, and editor formatting are separate work. No comparative performance claim is made.
+See [the engine design](Documentation/TemplateEngine.md), [the EEx/HEEx comparison](Documentation/HEExParity.md), and [the live rendering guide](Documentation/LiveView.md). String rendering and structured live snapshots share the compiler. Live state and HTTP transport live in separate layers. Async template expressions, editor formatting, Phoenix protocol compatibility, and comparative performance claims remain outside this implementation.

@@ -6,11 +6,24 @@
 /// ```html
 /// <%= render(_renderCardBuffer(user: user)) %>
 /// ```
+///
+/// This function does not sanitize HTML. Use it only for output from a trusted
+/// renderer or content whose trust policy your application has established.
 public func render(_ content: String) -> ESWValue {
     .safe(content)
 }
 
+/// Runtime helpers for escaping text, constructing attributes, and assembling slots.
 public enum ESW {
+    /// Converts a value to HTML body text, escaping `&`, `<`, `>`, `"`, and `'`.
+    ///
+    /// Nested optionals are unwrapped; `nil` renders as an empty string.
+    /// ``ESWValue/safe(_:)`` is emitted unchanged. Other values use their string
+    /// description, with booleans rendered as `true` or `false`.
+    ///
+    /// This is HTML escaping, not HTML sanitization or JavaScript/CSS encoding.
+    /// Dynamic attributes use ``attribute(_:_:)`` so body trust cannot bypass
+    /// attribute escaping.
     public static func escape(_ value: Any?) -> String {
         guard let value = unwrapped(value) else { return "" }
         let string: String

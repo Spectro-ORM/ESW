@@ -1,0 +1,6 @@
+<h1><%= title %></h1>
+<% if let error { %><p role="alert"><%= error %></p><% } %>
+<input name="email" value="<%= email %>">
+<input name="_csrf_token" value="<%= csrfToken %>">
+<p><%= normalize(email) %></p>
+<time><%= Int(Date(timeIntervalSince1970: 0).timeIntervalSince1970) %></time>

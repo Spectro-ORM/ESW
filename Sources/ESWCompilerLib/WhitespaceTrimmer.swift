@@ -1,3 +1,4 @@
+/// Removes template-code-only lines while respecting explicit whitespace preservation.
 public enum WhitespaceTrimmer {
 
     /// Applies whitespace trimming to a token array per spec §7.2.

@@ -3,6 +3,13 @@ import Testing
 
 @Suite("Peregrine compiler contracts")
 struct CompilerContractTests {
+    @Test func liveFilesGenerateStructuredRenderFunctions() throws {
+        let output = try compile(source: "<%! var count: Int %><p>{count}</p>", filename: "counter.live.heex", sourceFile: "counter.live.heex")
+        #expect(output.contains("func renderCounterLive("))
+        #expect(output.contains(") -> ESWLiveRender"))
+        #expect(output.contains("ESWLiveBuffer()"))
+    }
+
     @Test func batchIsDeterministicAndRejectsNormalizedCollisions() throws {
         let users = TemplateSource(name: "users/index.heex", source: "<p>Users</p>", sourceFile: "Views/users/index.heex")
         let posts = TemplateSource(name: "posts/index.esw", source: "Posts", sourceFile: "Views/posts/index.esw")

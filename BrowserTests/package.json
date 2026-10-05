@@ -1,0 +1,7 @@
+{
+  "name": "esw-live-browser-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node live.mjs", "test:keyed": "node keyed.mjs" },
+  "devDependencies": { "playwright": "1.63.0" }
+}

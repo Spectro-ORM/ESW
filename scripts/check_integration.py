@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile real consumers, reject invalid slot types, and verify incremental builds.
 
-Usage: python3 scripts/check_integration.py [--peregrine /path/to/Peregrine]
+Usage: python3 scripts/check_integration.py [--roost /path/to/Roost]
 """
 import argparse
 from pathlib import Path
@@ -24,7 +24,7 @@ def run(arguments, *, cwd=ROOT, succeeds=True):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--peregrine", type=Path)
+    parser.add_argument("--roost", "--peregrine", dest="roost", type=Path)
     options = parser.parse_args()
     run(["swift", "build", "--product", "ESWCompilerCLI"])
     binary_dir = Path(run(["swift", "build", "--show-bin-path"]).strip())
@@ -70,23 +70,64 @@ struct ProbeTable: ESWComponent {
             assert expected in diagnostic, diagnostic
         print("Swift rejects wrong slot attributes, wrong row members, escaped binding scopes, and missing required slots.", flush=True)
 
-        if options.peregrine:
-            cli = options.peregrine.resolve() / "Sources/PeregrineCLI"
+        typed_template = probe / "typed.esw"
+        companion = probe / "TypedView.swift"
+        typed_output = probe / "typed-generated.swift"
+        companion.write_text('import ESW\n@ESWTemplate("typed.esw")\nstruct TypedView { let email: String }\n')
+        typed_template.write_text('<p><%= emali %></p>\n')
+        run([compiler, typed_template, "--view-source", companion, "--source-location", "--output", typed_output])
+        diagnostic = run(["swiftc", "-typecheck", "-I", binary_dir, "-load-plugin-executable", str(binary_dir / "ESWMacros") + "#ESWMacros", companion, typed_output], succeeds=False)
+        assert "cannot find 'emali' in scope" in diagnostic, diagnostic
+        assert str(typed_template) + ":1:" in diagnostic, diagnostic
+        typed_template.write_text('<p><%= email %></p>\n')
+        run([compiler, typed_template, "--view-source", companion, "--output", typed_output])
+        caller = probe / "main.swift"
+        caller.write_text("let html = TypedView(email: 42).render()\n")
+        diagnostic = run(["swiftc", "-typecheck", "-I", binary_dir, "-load-plugin-executable", str(binary_dir / "ESWMacros") + "#ESWMacros", companion, typed_output, caller], succeeds=False)
+        assert "expected argument type 'String'" in diagnostic, diagnostic
+        companion.write_text('import ESW\n@ESWTemplate("typed.esw")\npublic struct TypedView { let email = "public"; public init() {} }\n')
+        run([compiler, typed_template, "--view-source", companion, "--output", typed_output])
+        run(["swiftc", "-emit-module", "-module-name", "ViewProbe", "-I", binary_dir, "-load-plugin-executable", str(binary_dir / "ESWMacros") + "#ESWMacros",
+             companion, typed_output, "-o", probe / "ViewProbe.swiftmodule"])
+        caller.write_text("import ViewProbe\nlet html = TypedView().render()\n")
+        run(["swiftc", "-typecheck", "-I", binary_dir, "-I", probe, caller])
+        print("Typed views preserve Swift input checking, template diagnostics, and public access across modules.", flush=True)
+
+        previous_output = typed_output.read_bytes()
+        duplicate = probe / "DuplicateView.swift"
+        duplicate.write_text('import ESW\n@ESWTemplate("typed.esw")\nstruct DuplicateView {}\n')
+        diagnostic = run([compiler, typed_template, "--view-source", companion,
+                          "--view-source", duplicate, "--output", typed_output], succeeds=False)
+        assert "already associated" in diagnostic, diagnostic
+        assert typed_output.read_bytes() == previous_output
+        diagnostic = run([compiler, "--batch", "--view-source", companion,
+                          "--output", typed_output], succeeds=False)
+        assert "missing or is not a template input" in diagnostic, diagnostic
+        assert typed_output.read_bytes() == previous_output
+        diagnostic = run(["swiftc", "-typecheck", "-I", binary_dir, "-load-plugin-executable",
+                          str(binary_dir / "ESWMacros") + "#ESWMacros", companion], succeeds=False)
+        assert "does not conform to protocol 'ESWView'" in diagnostic, diagnostic
+        print("Missing templates, duplicate associations, and missing build output fail without replacing generated files.", flush=True)
+
+        if options.roost:
+            cli = options.roost.resolve() / "Sources/RoostCLI"
             generator = probe / "generator-probe"
             run([
                 "swiftc", cli / "Utils/FieldParser.swift", cli / "Templates/GeneratorTemplates.swift",
                 cli / "Templates/AuthTemplates.swift", cli / "Templates/ProjectTemplates.swift",
                 ROOT / "Fixtures/PeregrineGeneratorProbe.swift", "-o", generator,
             ])
-            generated = probe / "peregrine"
+            generated = probe / "roost"
             run([generator, generated])
             templates = sorted((generated / "Views").rglob("*.esw"))
             generated_swift = generated / "ESWTemplates.swift"
-            run([compiler, "--batch", "--root", generated, "--output", generated_swift, *templates])
-            run(["swiftc", "-frontend", "-parse", generated_swift, *sorted((generated / "Routes").glob("*.swift"))])
+            view_sources = sorted((generated / "Views").rglob("*.swift"))
+            source_args = [arg for path in view_sources for arg in ("--view-source", path)]
+            run([compiler, "--batch", "--root", generated, "--output", generated_swift, *source_args, *templates])
+            run(["swiftc", "-frontend", "-parse", generated_swift, *view_sources, *sorted((generated / "Routes").glob("*.swift"))])
             for variant in ("true", "false"):
                 run(["swift", "package", "--package-path", generated / f"manifest-{variant}", "dump-package"])
-            print("Peregrine generator output passes ESW compilation, Swift syntax checks, and manifest evaluation.", flush=True)
+            print("Roost generator output passes ESW compilation, Swift syntax checks, and manifest evaluation.", flush=True)
 
     fixture = ROOT / "Fixtures/PluginConsumer"
     run(["swift", "run", "--disable-sandbox", "App"], cwd=fixture)
@@ -103,6 +144,35 @@ struct ProbeTable: ESWComponent {
         template.write_bytes(original)
     run(["swift", "run", "--disable-sandbox", "App"], cwd=fixture)
     print("Consumer runtime assertions and template-only incremental rebuild passed; source restored.", flush=True)
+
+    typed_template = fixture / "Sources/App/Views/registration.esw"
+    companion = typed_template.parent / "RegistrationView.swift"
+    original_template = typed_template.read_bytes()
+    original_companion = companion.read_bytes()
+    marker = "ESW_TYPED_INCREMENTAL_PROBE_86A99341"
+    modified_template = original_template + f"\n<p>{marker}</p>\n".encode()
+    modified_companion = original_companion.replace(b"struct RegistrationView", b"public struct RegistrationView", 1)
+    assert modified_companion != original_companion
+    companion_changed = False
+    try:
+        typed_template.write_bytes(modified_template)
+        run(["swift", "run", "--disable-sandbox", "App", "--typed-template", marker], cwd=fixture)
+        companion.write_bytes(modified_companion)
+        companion_changed = True
+        run(["swift", "run", "--disable-sandbox", "App", "--typed-template", marker], cwd=fixture)
+        outputs = list((fixture / ".build/plugins/outputs").rglob("ESWTemplates.swift"))
+        assert any("extension RegistrationView {\n    public func render()" in path.read_text()
+                   for path in outputs), "A view-source-only edit must regenerate the method visibility"
+    finally:
+        if typed_template.read_bytes() != modified_template:
+            raise RuntimeError("Typed template changed concurrently; refusing to overwrite it")
+        typed_template.write_bytes(original_template)
+        if companion_changed:
+            if companion.read_bytes() != modified_companion:
+                raise RuntimeError("Companion changed concurrently; refusing to overwrite it")
+            companion.write_bytes(original_companion)
+    run(["swift", "run", "--disable-sandbox", "App"], cwd=fixture)
+    print("Typed template-only and view-source-only incremental rebuilds passed; sources restored.", flush=True)
 
 
 if __name__ == "__main__":

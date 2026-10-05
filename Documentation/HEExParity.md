@@ -2,11 +2,17 @@
 
 Research checked on 2026-10-04 against official documentation and source. The ESW starting state below is the working tree inspected during this task, based on `529bc12` with existing uncommitted changes. Recommendations describe intended work, not completed features or benchmark results.
 
-Implementation follow-up: the working tree now implements the deferred/repeated typed slots, qualified function calls, interpolation boundaries, and incremental build checks recommended below. It also adds resource-path names, Swift-parsed front matter, explicit imports, and scalar-based escaping. See [the implementation contract](TemplateEngine.md), [runtime examples](../Tests/ESWTests/SlotRenderingTests.swift), and [integration checks](../scripts/check_integration.py). The research sections retain their starting-state context; LiveView diffing, async/streaming, editor support, and comparative benchmarks remain outside this implementation.
+Implementation follow-up: the working tree now implements the deferred/repeated typed slots, qualified function calls, interpolation boundaries, and incremental build checks recommended below. It also adds resource-path names, Swift-parsed front matter, explicit imports, and scalar-based escaping. See [the implementation contract](TemplateEngine.md), [runtime examples](../Tests/ESWTests/SlotRenderingTests.swift), and [integration checks](../scripts/check_integration.py). A subsequent [live rendering layer](LiveView.md) adds output diffs, process-local state, SSE/POST events, and browser DOM reconciliation. The research sections retain their starting-state context; async template evaluation, editor support, and comparative benchmarks remain separate work.
 
 The strongest direction is HTML source with compiled Swift expressions, reusable typed components, and useful template diagnostics. Preserve the distinction between that rendering contract and a future Peregrine live-update system.
 
 ## What “close to EEx / LEEx / HEEx” means
+
+Current coverage is summarized in the [README feature table](../README.md#feature-coverage-eex-heex-and-liveview).
+The implementation now also supports `:key` on `:for` elements/components, including
+nested keyed wire diffs in live templates. Every expression still evaluates on
+render; assign dependency tracking and general component render trees remain absent.
+The research and starting-state comparisons below describe the earlier baseline.
 
 | Reference | Relevant contract |
 | --- | --- |

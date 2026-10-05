@@ -9,6 +9,7 @@ let package = Package(
         .macOS(.v14),
     ],
     products: [
+        .library(name: "ESWLive", targets: ["ESWLive"]),
         .library(
             name: "ESW",
             targets: ["ESW"]
@@ -26,6 +27,8 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
     ],
     targets: [
+        .target(name: "ESWLive", dependencies: ["ESW"], resources: [.copy("Resources")]),
+        .testTarget(name: "ESWLiveTests", dependencies: ["ESWLive"]),
         // Runtime library — ESWValue + escape() + macro declarations.
         .target(
             name: "ESW",

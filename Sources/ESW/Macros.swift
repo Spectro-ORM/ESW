@@ -1,5 +1,15 @@
 // MARK: - ESW Compile-Time Rendering Macros
 
+/// Associates a top-level view struct with a template relative to this Swift
+/// file. ESWBuildPlugin generates `render()` in an extension, where the struct's
+/// properties and helpers are in scope. Both files are tracked build inputs.
+///
+/// Requires ESWBuildPlugin on the target. Referenced members must be accessible
+/// from another source file (internal, package or public).
+@attached(extension, conformances: ESWView)
+public macro ESWTemplate(_ path: String) =
+    #externalMacro(module: "ESWMacros", type: "ESWTemplateMacro")
+
 /// Renders a `.esw` or `.heex` template file at compile time, returning a `String`.
 /// The file extension selects text or HTML-aware syntax.
 ///
@@ -19,13 +29,13 @@
 /// return conn.html(#render("donut_list.esw"))
 /// ```
 ///
-/// Works naturally with ``Connection/respondTo(html:json:)``:
-/// ```swift
-/// return try conn.respondTo(
-///     html: { conn.html(#render("donut_list.esw")) },
-///     json: { try conn.json(value: donuts) }
-/// )
-/// ```
+/// The result is framework-independent HTML. Pass it to your server's HTML response API.
+/// File lookup checks at most six directory levels. The file read does not establish
+/// a SwiftPM build dependency: use `ESWBuildPlugin` for reliable template-only rebuilds.
+/// Compile-time file reads may require `swift build --disable-sandbox`.
+///
+/// - Parameter templatePath: A literal relative or absolute template path.
+/// - Returns: Complete HTML. Even a `.live.heex` file returns `String` through this macro.
 @freestanding(expression)
 public macro render(_ templatePath: String) -> String =
     #externalMacro(module: "ESWMacros", type: "RenderMacro")
@@ -57,6 +67,25 @@ public macro esw(_ template: String) -> String =
 
 /// HTML-aware ESW: balanced tags, `{expression}`, dynamic attributes,
 /// and `:if` / `:for` directives using Swift expressions.
+///
+/// ```swift
+/// let names = ["Ada", "Grace"]
+/// let html = #heex("<ul><li :for={name in names}>{name}</li></ul>")
+/// ```
+///
+/// The argument must be a string literal without Swift string interpolation.
+/// Values come from the surrounding Swift scope. Use `{value}` for dynamic text
+/// and `title={value}` for dynamic attributes.
 @freestanding(expression)
 public macro heex(_ template: String) -> String =
+    #externalMacro(module: "ESWMacros", type: "InlineESWMacro")
+
+/// Compiles HEEx into a structured snapshot suitable for live DOM updates.
+///
+/// Authoring and escaping rules match ``heex(_:)``. The result separates literal
+/// HTML from dynamic strings; ``ESWLiveRender/html`` produces a complete page
+/// fragment and ``ESWLiveRender/diff(to:)`` computes output changes.
+/// The `ESWLive` module supplies state and event handling separately.
+@freestanding(expression)
+public macro live(_ template: String) -> ESWLiveRender =
     #externalMacro(module: "ESWMacros", type: "InlineESWMacro")

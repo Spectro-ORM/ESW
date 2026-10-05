@@ -1,6 +1,12 @@
 extension ESW {
     /// Renders a complete, quoted HTML attribute (including its leading space).
     /// Trusted HTML is still escaped here: text safety does not imply attribute safety.
+    ///
+    /// `nil` omits the attribute. Booleans produce a bare name or nothing, except
+    /// for `aria-*` and `data-*`, which receive quoted `true`/`false` strings.
+    /// A `class` array is flattened; nil, boolean, and empty entries are ignored.
+    /// Invalid attribute names are omitted. URL schemes and event-handler
+    /// attributes remain the caller's responsibility.
     public static func attribute(_ name: String, _ value: Any?) -> String {
         guard validAttributeName(name), let value = unwrapped(value) else { return "" }
         if let flag = value as? Bool {
@@ -19,6 +25,8 @@ extension ESW {
     }
 
     /// Attribute maps render in a stable order. Invalid names are omitted.
+    ///
+    /// Keys are sorted before applying ``attribute(_:_:)`` to each value.
     public static func attributes(_ values: [String: Any?]) -> String {
         values.keys.sorted().map { attribute($0, values[$0] ?? nil) }.joined()
     }

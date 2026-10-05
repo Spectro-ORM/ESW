@@ -1,13 +1,16 @@
+/// Lexical failures involving an incomplete tag or malformed component syntax.
 public enum ESWTokenizerError: Error, Equatable {
     case unterminatedTag(file: String, line: Int, column: Int)
     case malformedComponentTag(file: String, line: Int, column: Int)
 }
 
+/// Errors in the position or contents of a template declaration block.
 public enum ESWAssignsError: Error, Equatable {
     case assignsNotFirst(file: String, line: Int)
     case invalidDeclaration(file: String, line: Int, text: String)
 }
 
+/// Component and slot nesting errors detected while resolving the render tree.
 public enum ESWComponentError: Error, Equatable {
     case unterminatedComponent(file: String, line: Int, column: Int)
     case unmatchedComponentClose(file: String, line: Int, column: Int)
