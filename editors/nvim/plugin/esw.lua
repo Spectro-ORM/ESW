@@ -4,8 +4,5 @@ end
 vim.g.loaded_esw = true
 
 vim.filetype.add({
-  extension = { esw = "esw" },
-  pattern = {
-    [".*%.heex"] = { require("esw").heex_filetype, { priority = 10 } },
-  },
+  extension = { esw = "esw", hesw = "hesw" },
 })

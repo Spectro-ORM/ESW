@@ -54,7 +54,7 @@ struct LiveRenderTests {
         #expect(patch.entries["2"]?.statics == nil)
         #expect(patch.entries["2"]?.dynamics == ["0": "&lt;Changed&gt;"])
         let items = [(id: 1, name: "One"), (id: 2, name: "<Changed>")]
-        #expect(after.html == #heex("<ul><li :key={item.id} :if={!item.name.isEmpty} :for={item in items}>{item.name}</li></ul>"))
+        #expect(after.html == #hesw("<ul><li :key={item.id} :if={!item.name.isEmpty} :for={item in items}>{item.name}</li></ul>"))
     }
 
     @Test func nestedKeyedListsKeepSeparateIdentityScopes() throws {
@@ -155,17 +155,17 @@ struct LiveRenderTests {
         let title = "\"\u{301}<A>"
         let visible = true
         let live = #live("<p :if={visible} title={title}>{title}</p>")
-        #expect(live.html == #heex("<p :if={visible} title={title}>{title}</p>"))
+        #expect(live.html == #hesw("<p :if={visible} title={title}>{title}</p>"))
     }
 
     @Test func componentsKeepTypedDeferredSlotsAndEscaping() {
         func page(_ title: String) -> ESWLiveRender {
             #live("<.live-card title={title} :let={label}><p>{label}</p></.live-card>")
         }
-        let title = "<Swift & HEEx>"
+        let title = "<Swift & HESW>"
         let live = page(title)
-        #expect(live.html == #heex("<.live-card title={title} :let={label}><p>{label}</p></.live-card>"))
-        #expect(live.html == "<article><p>&lt;Swift &amp; HEEx&gt;</p></article>")
+        #expect(live.html == #hesw("<.live-card title={title} :let={label}><p>{label}</p></.live-card>"))
+        #expect(live.html == "<article><p>&lt;Swift &amp; HESW&gt;</p></article>")
         #expect(live.diff(to: page("Changed")).statics == nil)
         #expect(live.diff(to: page("Changed")).dynamics == ["0": "<article><p>Changed</p></article>"])
     }

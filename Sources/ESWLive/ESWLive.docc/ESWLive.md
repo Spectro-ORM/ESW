@@ -4,7 +4,7 @@ Own live view state on the server, serialize events, and publish render updates.
 
 ## Overview
 
-A ``LiveView`` defines how to mount state, handle an event, and render HTML.
+An ``Interactive`` view defines how to mount state, handle an event, and render HTML.
 ``LiveSession`` owns one instance's state and serializes complete asynchronous
 operations. ``LiveHost`` manages instances for a route, binding them to trusted
 owner tokens and expiring them after a fixed lifetime.
@@ -21,13 +21,13 @@ and the SSE stream, along with the application's session and CSRF checks.
 
 ### Build a live feature
 
-- <doc:WritingALiveView>
+- <doc:WritingAnInteractiveView>
 - <doc:LifecycleAndEvents>
 - <doc:BrowserIntegration>
 
 ### Application contract
 
-- ``LiveView``
+- ``Interactive``
 - ``LiveContext``
 - ``LiveEvent``
 - ``LiveError``

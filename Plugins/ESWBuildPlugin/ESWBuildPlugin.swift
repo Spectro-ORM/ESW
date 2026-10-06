@@ -5,7 +5,7 @@ struct ESWBuildPlugin: BuildToolPlugin {
     func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {
         guard let target = target as? SourceModuleTarget else { return [] }
         let templates = target.sourceFiles.filter {
-            ["esw", "heex"].contains($0.url.pathExtension)
+            ["esw", "hesw", "heex"].contains($0.url.pathExtension)
         }.map(\.url).sorted { $0.path < $1.path }
         let viewSources = target.sourceFiles.map(\.url).filter {
             $0.pathExtension == "swift"

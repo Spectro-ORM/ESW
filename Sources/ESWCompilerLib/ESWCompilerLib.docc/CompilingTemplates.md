@@ -17,8 +17,8 @@ var name: String
 """
 let generated = try compile(
     source: source,
-    filename: "greeting.heex",
-    sourceFile: "/project/Sources/App/Views/greeting.heex"
+    filename: "greeting.hesw",
+    sourceFile: "/project/Sources/App/Views/greeting.hesw"
 )
 ```
 
@@ -27,8 +27,8 @@ logical name used for naming and syntax selection; `sourceFile` preserves the
 original path in diagnostics and `#sourceLocation` directives. The compiler does
 not read either path. You provide the loaded template contents.
 
-Syntax defaults to `.heex` for filenames ending in `.heex`, otherwise `.esw`.
-A `.live.heex` filename also selects structured live output. Override the parser
+Syntax defaults to `.hesw` for filenames ending in `.hesw`, otherwise `.esw`.
+A `.live.hesw` filename also selects structured live output. Override the parser
 with `syntax:` when necessary, while retaining deliberate logical naming.
 
 ### Compile a batch
@@ -36,9 +36,9 @@ with `syntax:` when necessary, while retaining deliberate logical naming.
 ```swift
 let templates = [
     TemplateSource(
-        name: "users/index.heex",
+        name: "users/index.hesw",
         source: "<h1>Users</h1>",
-        sourceFile: "/project/Views/users/index.heex"
+        sourceFile: "/project/Views/users/index.hesw"
     ),
     TemplateSource(
         name: "posts/index.esw",
@@ -66,8 +66,8 @@ let view = try TemplateView(
 )
 let generated = try compile(
     source: "<h1>Hello, {name}!</h1>",
-    filename: "greeting.heex",
-    sourceFile: "/project/Views/greeting.heex",
+    filename: "greeting.hesw",
+    sourceFile: "/project/Views/greeting.hesw",
     view: view
 )
 ```
@@ -92,7 +92,7 @@ The direct initializer above is for tools that already know the association.
 ```swift
 let expression = try compileExpression(
     source: "<p>{name}</p>",
-    syntax: .heex
+    syntax: .hesw
 )
 ```
 

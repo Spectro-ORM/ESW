@@ -33,7 +33,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="esw-integration-") as temporary:
         probe = Path(temporary)
         first = probe / "user_card.esw"
-        second = probe / "user-card.heex"
+        second = probe / "user-card.hesw"
         first.write_text("<p>First</p>")
         second.write_text("<p>Second</p>")
         output = probe / "generated.swift"
@@ -41,7 +41,7 @@ def main():
         diagnostic = run([compiler, "--batch", "--root", probe, "--output", output, first, second], succeeds=False)
         assert "both generate renderUserCard" in diagnostic
         assert output.read_text() == "previous output", "Failed batches must not replace existing output"
-        malformed = probe / "invalid.heex"
+        malformed = probe / "invalid.hesw"
         malformed.write_text("<div>\n<span>\n</div>")
         diagnostic = run([compiler, malformed], succeeds=False)
         assert f"{malformed}:3:1: error:" in diagnostic and "expected </span>" in diagnostic
@@ -62,7 +62,7 @@ struct ProbeTable: ESWComponent {
         ]
         for index, (template, expected) in enumerate(invalid_templates):
             source = probe / f"invalid-slot-{index}.swift"
-            source.write_text(prefix + 'let html = #heex(#"' + template + '"#)\n')
+            source.write_text(prefix + 'let html = #hesw(#"' + template + '"#)\n')
             diagnostic = run([
                 "swiftc", "-typecheck", "-I", binary_dir, "-load-plugin-executable",
                 str(binary_dir / "ESWMacros") + "#ESWMacros", source,

@@ -61,16 +61,16 @@ func renderUsers(users: [User]) -> String {
 
 ESW covers everyday EEx-style templates and HEEx-style HTML authoring with Swift
 expressions. `ESWLive` adds a smaller live runtime. These are separate layers:
-`.esw` corresponds to EEx, `.heex` to HEEx authoring, and `ESWLive` plus an HTTP
-adapter to LiveView. Templates and browser protocols are not interchangeable
-with Phoenix.
+`.esw` corresponds to EEx, HESW (HTML-aware ESW, `.hesw`) to HEEx authoring, and
+`ESWLive` plus an HTTP adapter to Phoenix LiveView. Templates and browser
+protocols are not interchangeable with Phoenix.
 
 | Template capability | ESW support |
 | --- | --- |
 | Expressions, conditions, loops, escaped output and explicit raw HTML | Implemented with Swift |
 | Compile templates into functions | Build plugin and macros |
 | Separate view logic and template | `@ESWTemplate` on ordinary Swift structs; no template header required |
-| HTML validation, dynamic/boolean attributes, class lists and attribute spreads | Implemented in HEEx mode |
+| HTML validation, dynamic/boolean attributes, class lists and attribute spreads | Implemented in HESW |
 | `:if` / `:for`, function components, default/named/repeated/bound slots | Implemented; arguments follow Swift ordering and type checking |
 | Keyed comprehensions with `:key` | Implemented on HTML elements and function components with `:for`; nested lists supported |
 | Editor tooling | Neovim syntax highlighting; dedicated template formatter and LSP missing |
@@ -108,7 +108,7 @@ Add ESW to your application's `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/roost-framework/ESW.git", from: "1.5.0"),
+    .package(url: "https://github.com/roost-framework/ESW.git", from: "1.6.0"),
 ]
 ```
 
@@ -116,7 +116,7 @@ dependencies: [
 
 ### Option A: Build Plugin (Recommended for File Templates)
 
-The plugin compiles `.esw` and `.heex` files into `String`-returning functions. Opt-in `.live.heex` files return `ESWLiveRender` snapshots. Template files are explicit build inputs, so editing a template rebuilds its renderer.
+The plugin compiles `.esw` and `.hesw` files into `String`-returning functions. Opt-in `.live.hesw` files return `ESWLiveRender` snapshots. Template files are explicit build inputs, so editing a template rebuilds its renderer.
 
 ```swift
 targets: [
@@ -136,7 +136,7 @@ In a Peregrine route, use `conn.html(renderUsersIndex(users: users))`. The rende
 
 ### Option B: Macros
 
-Add the `ESW` product to your target for inline `#esw` and `#heex` templates. They capture Swift values from the surrounding scope. The `#render` file macro is also available, but its file read does not itself establish a SwiftPM template dependency; prefer the plugin for file templates that must rebuild reliably.
+Add the `ESW` product to your target for inline `#esw` and `#hesw` templates. They capture Swift values from the surrounding scope. The `#render` file macro is also available, but its file read does not itself establish a SwiftPM template dependency; prefer the plugin for file templates that must rebuild reliably.
 
 File macros require compile-time file access:
 
@@ -189,8 +189,7 @@ return conn.html(renderGreeting(name: "World"))
 ## Editor Support
 
 The [Neovim plugin](editors/nvim) highlights HTML and embedded Swift in `.esw`
-templates and recognizes ESW's `.heex` templates within Swift packages. It reuses
-Neovim's built-in syntax files and preserves Phoenix HEEx file detection.
+and `.hesw` templates. It reuses Neovim's built-in syntax files.
 
 ## Syntax Reference
 
@@ -207,9 +206,9 @@ Neovim's built-in syntax files and preserves Phoenix HEEx file detection.
 | `<.component />` | Component tag | See below |
 | `<:slot></:slot>` | Named slot | See below |
 
-### HTML-Aware Templates (`.heex`)
+### HTML-Aware Templates (`.hesw`)
 
-Use `.heex` files or the `#heex` macro for balanced HTML tags, brace interpolation, dynamic attributes, and directives. Expressions are Swift:
+Use `.hesw` files or the `#hesw` macro for balanced HTML tags, brace interpolation, dynamic attributes, and directives. Expressions are Swift:
 
 ```html
 <%!
@@ -241,7 +240,7 @@ When both directives appear, `:for` creates the scope for `:if`, regardless of t
 <li :if={item.count > 0} :for={item in items}>{item.name}</li>
 ```
 
-Use `:key` to keep list updates small in `#live` and `.live.heex` templates:
+Use `:key` to keep list updates small in `#live` and `.live.hesw` templates:
 
 ```html
 <ul>
@@ -258,14 +257,16 @@ Keys must be stable and have unique JSON encodings within their list; Swift
 unencodable keys fall back to a complete HTML fragment without dropping rows.
 `:key` requires `:for` on the same element or component and is not supported on
 slots. It does not emit an HTML attribute: use explicit stable `id` attributes
-for DOM identity and focus preservation. Ordinary `#heex` / `.heex` renderers
+for DOM identity and focus preservation. Ordinary `#hesw` / `.hesw` renderers
 produce the same HTML with or without `:key`.
 
-The existing `<% ... %>` tags, components, and string slots also work in HEEx mode. Use `title={expression}` for dynamic HTML attributes; embedded `<%= ... %>` inside a quoted attribute is rejected. Attribute values are always escaped, including values marked with `render(...)`.
+The existing `<% ... %>` tags, components, and string slots also work in HESW. Use `title={expression}` for dynamic HTML attributes; embedded `<%= ... %>` inside a quoted attribute is rejected. Attribute values are always escaped, including values marked with `render(...)`.
 
 HTML mode reports unclosed or mismatched tags, duplicate attributes, and malformed directives with source locations. Non-void elements need closing tags or `/>`. HTML comments and the bodies of `<script>` and `<style>` keep braces literal while still evaluating `<% ... %>` tags and processing escaped EEx delimiters. A bare `phx-no-curly-interpolation` attribute applies that brace rule to an HTML element, component, or slot body and its descendants; dynamic attributes and EEx tags still work, and the control attribute is removed from the output. Use `\{` and `\}` for literal braces in body text (in a Swift literal, use a raw string or escape the backslash).
 
-`.esw` files retain their text-template behavior: literal braces and HTML fragments are allowed. HEEx mode is a Swift template syntax inspired by Phoenix; it does not include LiveView state, diffing, or events.
+`.esw` files retain their text-template behavior: literal braces and HTML fragments are allowed. HESW is a Swift template syntax inspired by Phoenix HEEx; it does not include live state, diffing, or events.
+
+**Note:** `.heex` files, `#heex`, `--heex`, `TemplateSyntax.heex`, and `LiveView` still work as deprecated aliases and will be removed in ESW 2.0.
 
 ### Typed Views (No Template Header)
 
@@ -311,7 +312,7 @@ Members referenced by the template must be internal, package or public; separate
 extensions cannot access `private` or `fileprivate` members. A public or package
 view gets the same `render()` access level.
 
-`.esw` and `.heex` views return `String`; `.live.heex` views return `ESWLiveRender`.
+`.esw` and `.hesw` views return `String`; `.live.hesw` views return `ESWLiveRender`.
 The build plugin tracks all target Swift sources and template files, including
 when annotations are added, removed or changed. Standalone CLI use is explicit:
 
@@ -540,7 +541,7 @@ see the library guides for the complete reference.
 
 ### `#render` — File Templates
 
-Reads a `.esw` or `.heex` file at compile time and expands to a `String`-returning closure. The extension selects the syntax:
+Reads a `.esw` or `.hesw` file at compile time and expands to a `String`-returning closure. The extension selects the syntax:
 
 ```swift
 let users = try await db.query(User.self).all()
@@ -574,11 +575,11 @@ let badge = #esw("""
     """)
 ```
 
-### `#heex` — Inline HTML-Aware Templates
+### `#hesw` — Inline HTML-Aware Templates
 
 ```swift
 let items = ["Swift", "HTML"]
-let html = #heex("""
+let html = #hesw("""
     <ul><li :for={item in items}>{item}</li></ul>
     """)
 ```
@@ -600,13 +601,13 @@ Response(status: .ok, body: .init(byteBuffer: ByteBuffer(string: #render("page.e
 Response(body: .init(string: #render("page.esw")))
 ```
 
-**Note:** File templates via `#render` require `--disable-sandbox` for compile-time file reads. `#esw` and `#heex` do not read template files.
+**Note:** File templates via `#render` require `--disable-sandbox` for compile-time file reads. `#esw` and `#hesw` do not read template files.
 
 ---
 
 ## Build Plugin
 
-Auto-generates Swift functions returning `String` from `.esw` and `.heex` files.
+Auto-generates Swift functions returning `String` from `.esw` and `.hesw` files.
 
 ### Generated Functions
 
@@ -614,10 +615,10 @@ Auto-generates Swift functions returning `String` from `.esw` and `.heex` files.
 |----------|-------------------|
 | `user_profile.esw` | `renderUserProfile(...)` |
 | `layout.esw` | `renderLayout(...)` |
-| `tasks.heex` | `renderTasks(...)` |
-| `users/index.heex` | `renderUsersIndex(...)` |
+| `tasks.hesw` | `renderTasks(...)` |
+| `users/index.hesw` | `renderUsersIndex(...)` |
 | `posts/index.esw` | `renderPostsIndex(...)` |
-| `users/_card.heex` | `renderUsersCard(...)` + `_renderUsersCardBuffer(...)` |
+| `users/_card.hesw` | `renderUsersCard(...)` + `_renderUsersCardBuffer(...)` |
 | `_user_card.esw` | `renderUserCard(...)` + `_renderUserCardBuffer(...)` |
 
 ### Usage
@@ -628,18 +629,18 @@ return conn.html(renderUserProfile(user: user, posts: posts))
 
 **Partials** (files starting with `_`) also get a `_render…Buffer(...)` alias returning the same `String`. Both variants retain parameter defaults.
 
-Names are relative to `Views/` (or the target directory for templates outside it). Directory names are part of the function name, so separate resources can each have `index.heex`. Underscores and hyphens separate words in generated names. The plugin rejects filename collisions such as `user_card.esw` and `user-card.heex`, which both generate `renderUserCard`.
+Names are relative to `Views/` (or the target directory for templates outside it). Directory names are part of the function name, so separate resources can each have `index.hesw`. Underscores and hyphens separate words in generated names. The plugin rejects filename collisions such as `user_card.esw` and `user-card.hesw`, which both generate `renderUserCard`.
 
 ### Compiler CLI
 
 ```bash
-swift run ESWCompilerCLI Views/tasks.heex --output /tmp/renderTasks.swift --source-location
+swift run ESWCompilerCLI Views/tasks.hesw --output /tmp/renderTasks.swift --source-location
 ```
 
-Use `--heex` to opt into HTML mode for a file with a different extension. A batch uses the same naming and collision checks as the plugin:
+Use `--hesw` to opt into HTML mode for a file with a different extension. A batch uses the same naming and collision checks as the plugin:
 
 ```bash
-swift run ESWCompilerCLI --batch --root Sources/App --output /tmp/ESWTemplates.swift Sources/App/Views/users/index.heex Sources/App/Views/posts/index.esw
+swift run ESWCompilerCLI --batch --root Sources/App --output /tmp/ESWTemplates.swift Sources/App/Views/users/index.hesw Sources/App/Views/posts/index.esw
 ```
 
 The plugin regenerates one Swift file for the target when a template changes. Generation is atomic: parsing or name-collision errors leave the previous output intact.
@@ -743,7 +744,7 @@ func assetPath(_ name: String) -> String {
 
 ## Hot Reload
 
-Auto-recompile `.esw` and `.heex` files during development.
+Auto-recompile `.esw` and `.hesw` files during development.
 
 ### Setup
 
@@ -759,7 +760,7 @@ brew install fswatch
 ./scripts/dev_watch.sh
 ```
 
-Watches `.esw` and `.heex` files outside `.build` and `.git`, and runs `swift build` on changes.
+Watches `.esw` and `.hesw` files outside `.build` and `.git`, and runs `swift build` on changes.
 
 ---
 
@@ -782,12 +783,12 @@ error: #render expects a file path (e.g. #render("template.esw")), not inline HT
 
 ## Live Rendering and Events
 
-`#live` uses the same HTML validation, Swift expressions, components, and escaping as `#heex`, while keeping static HTML separate from dynamic values:
+`#live` uses the same HTML validation, Swift expressions, components, and escaping as `#hesw`, while keeping static HTML separate from dynamic values:
 
 ```swift
 import ESWLive
 
-struct Counter: LiveView {
+struct Counter: Interactive {
     func mount(_ context: LiveContext) async throws -> Int { 0 }
 
     func handleEvent(_ event: LiveEvent, state: Int) async throws -> Int {
@@ -847,7 +848,7 @@ This verifies consumer rendering, a template-only incremental rebuild, failed-ba
 ### Hot Reload Development
 
 ```bash
-# Terminal 1: Watch ESW and HEEx files
+# Terminal 1: Watch ESW and HESW files
 ./scripts/dev_watch.sh
 
 # Terminal 2: Run your app
@@ -886,7 +887,7 @@ swift-esw/
 ### Compiler Pipeline
 
 ```
-.esw / .heex source
+.esw / .hesw source
     ↓
 Tokenizer (text or HTML mode) → Tokens
     ↓

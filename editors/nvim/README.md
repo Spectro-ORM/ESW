@@ -29,20 +29,17 @@ vim.opt.runtimepath:prepend("/path/to/esw/editors/nvim")
 
 - `.esw` uses the `esw` filetype: HTML, Swift declarations and code/output tags,
   template comments, escapes, component tags, named slots, and component attributes.
-- `.heex` and `.live.heex` use `eswheex` when the nearest project manifest is a
-  `Package.swift` containing a quoted `ESW`, `ESWLive`, or `ESWBuildPlugin` name.
-  This also highlights Swift brace expressions in HTML bodies and unquoted attributes.
-- Other `.heex` files retain their existing detection, including Phoenix's `heex`
-  filetype. A nearer `mix.exs` takes precedence over an enclosing Swift package.
+- `.hesw` and `.live.hesw` use the `hesw` filetype, which also highlights Swift
+  brace expressions in HTML bodies and unquoted attributes.
 
-If your project does not use a recognizable SwiftPM manifest, select the filetype
-manually with `:set ft=eswheex`, or add a project-specific `vim.filetype.add` rule.
+Deprecated `.heex` templates keep Neovim's normal detection, including Phoenix's
+`heex` filetype. Select HESW highlighting manually with `:set ft=hesw`.
 Use `:set ft=esw` to select the text-oriented syntax explicitly.
 
 Highlight groups inherit your color scheme's HTML and Swift colors. Template
 delimiters and directives use `PreProc`; component names use `Type`. Comment
 commands insert `<%!-- ... --%>` template comments. Changing from Phoenix HEEx to
-ESW stops that buffer's old Tree-sitter highlighter.
+ESW or HESW stops that buffer's old Tree-sitter highlighter.
 
 This package provides lexical highlighting, not Swift completion, diagnostics,
 formatting, or a structural Tree-sitter grammar. In particular, it does not model
@@ -60,4 +57,4 @@ nvim --clean --headless -i NONE -l editors/nvim/tests/check.lua
 
 The checks cover mixed-language boundaries, quoted HTML attributes, raw and
 multiline Swift strings, string interpolation, nested comments, template escapes,
-components, HEEx expressions, filetype switching, and Phoenix detection.
+components, HESW expressions, filetype switching, and filetype detection.

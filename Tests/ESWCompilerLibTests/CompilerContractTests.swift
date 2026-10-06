@@ -4,29 +4,36 @@ import Testing
 @Suite("Peregrine compiler contracts")
 struct CompilerContractTests {
     @Test func liveFilesGenerateStructuredRenderFunctions() throws {
-        let output = try compile(source: "<%! var count: Int %><p>{count}</p>", filename: "counter.live.heex", sourceFile: "counter.live.heex")
+        let output = try compile(source: "<%! var count: Int %><p>{count}</p>", filename: "counter.live.hesw", sourceFile: "counter.live.hesw")
         #expect(output.contains("func renderCounterLive("))
         #expect(output.contains(") -> ESWLiveRender"))
         #expect(output.contains("ESWLiveBuffer()"))
     }
 
     @Test func batchIsDeterministicAndRejectsNormalizedCollisions() throws {
-        let users = TemplateSource(name: "users/index.heex", source: "<p>Users</p>", sourceFile: "Views/users/index.heex")
+        let users = TemplateSource(name: "users/index.hesw", source: "<p>Users</p>", sourceFile: "Views/users/index.hesw")
         let posts = TemplateSource(name: "posts/index.esw", source: "Posts", sourceFile: "Views/posts/index.esw")
         #expect(try compileTemplates([users, posts]) == compileTemplates([posts, users]))
         #expect(throws: ESWTemplateError.self) {
             try compileTemplates([
                 TemplateSource(name: "user_card.esw", source: "", sourceFile: "user_card.esw"),
-                TemplateSource(name: "user-card.heex", source: "", sourceFile: "user-card.heex"),
+                TemplateSource(name: "user-card.hesw", source: "", sourceFile: "user-card.hesw"),
             ])
         }
     }
 
     @Test func resourcePathsHaveDistinctNames() {
-        #expect(Naming.functionName(from: "users/index.heex") == "renderUsersIndex")
+        #expect(Naming.functionName(from: "users/index.hesw") == "renderUsersIndex")
         #expect(Naming.functionName(from: "posts/index.esw") == "renderPostsIndex")
-        #expect(Naming.bufferFunctionName(from: "users/_card.heex") == "_renderUsersCardBuffer")
-        #expect(Naming.isPartial("users/_card.heex"))
+        #expect(Naming.bufferFunctionName(from: "users/_card.hesw") == "_renderUsersCardBuffer")
+        #expect(Naming.isPartial("users/_card.hesw"))
+    }
+
+    @Test func deprecatedHeexSuffixStillSelectsHESW() {
+        #expect(TemplateSyntax(path: "Views/page.heex") == .hesw)
+        #expect(TemplateSyntax(path: "Views/page.esw") == .esw)
+        #expect(TemplateSyntax.isLive(path: "counter.live.heex"))
+        #expect(Naming.functionName(from: "counter.live.heex") == "renderCounterLive")
     }
 
     @Test func swiftDeclarationsAndExplicitImports() throws {

@@ -1,6 +1,6 @@
 /// Shared renderer naming rules for file compilation and collision checks.
 public enum Naming {
-    /// Names are relative to the template root: users/index.heex → renderUsersIndex.
+    /// Names are relative to the template root: users/index.hesw → renderUsersIndex.
     /// Flat names retain their original spelling and partial convention.
     public static func functionName(from filename: String) -> String {
         let components = filename.split(separator: "/").map { component in
@@ -10,7 +10,7 @@ public enum Naming {
                 return text.prefix(1).uppercased() + text.dropFirst()
             }.joined()
         }
-        return "render" + components.joined() + (filename.hasSuffix(".live.heex") ? "Live" : "")
+        return "render" + components.joined() + (TemplateSyntax.isLive(path: filename) ? "Live" : "")
     }
 
     /// Returns the compatibility alias used for partial renderers.

@@ -4,7 +4,7 @@ ESW compiles editable HTML templates and Swift expressions into ordinary Swift f
 
 ## Design
 
-- Template names are paths relative to `Views`: `users/index.heex` becomes `renderUsersIndex`. A batch compiler owns naming, collision diagnostics, and atomic generation; the plugin only declares inputs and one output.
+- Template names are paths relative to `Views`: `users/index.hesw` becomes `renderUsersIndex`. A batch compiler owns naming, collision diagnostics, and atomic generation; the plugin only declares inputs and one output.
 - `@ESWTemplate("relative/path.esw")` on an unconditional top-level struct opts into typed views. Ordinary Swift filenames and multiple views per file are supported. The macro declares `ESWView` conformance without filesystem reads; the build plugin tracks all Swift sources and templates, and the CLI resolves annotations before generating `render()` extensions. Missing/duplicate associations, private types, nested/conditional declarations and template parameter blocks are rejected. Swift supplies types, initializers, defaults, generics and helpers. Imports, conditional imports and public/package visibility are preserved.
 - Front matter uses Swift's parser for typed parameters, multiline defaults, and explicit imports. Inline macros use imports from their enclosing Swift file. Legacy bare keyword parameter names remain accepted. Existing Peregrine templates declaring exactly `Connection` without imports retain their Nexus import; explicit imports override that compatibility path, and unrelated type names never select a framework.
 - Existing `<.card>` calls `Card.render`, and existing simple string slots remain valid. Qualified function components use `<UI.card>`. Swift checks component signatures.
@@ -16,7 +16,7 @@ ESW compiles editable HTML templates and Swift expressions into ordinary Swift f
 
 ## Boundaries
 
-Swift 6.3+, macOS 14+, SwiftSyntax 600 remain the package requirements. Template evaluation is synchronous. Ordinary templates return `String`; `#live` and `.live.heex` opt into static/dynamic `ESWLiveRender` snapshots. The separate [ESWLive runtime and Peregrine adapter](LiveView.md) provide live state, DOM patching, and event transport. Async template evaluation and benchmarks against competing engines remain separate work.
+Swift 6.3+, macOS 14+, SwiftSyntax 600 remain the package requirements. Template evaluation is synchronous. Ordinary templates return `String`; `#live` and `.live.hesw` opt into static/dynamic `ESWLiveRender` snapshots. The separate [ESWLive runtime and Peregrine adapter](LiveView.md) provide live state, DOM patching, and event transport. Async template evaluation and benchmarks against competing engines remain separate work.
 
 The adjacent Roost CLI generates annotated Swift view structs and headerless templates.
 `try conn.render(view)` supplies request context and the application's layout.
@@ -28,6 +28,6 @@ data. Existing free renderers and `conn.html(...)` remain available.
 
 Compiled runtime tests must exercise a table with typed column attributes, repeated/conditional columns, per-row `:let`, nested components, HTML escaping, optional slots, and named/default binding isolation. The plugin consumer must compile distinct `users/index` and `posts/index` templates, explicit imported types, and a multiline default. Negative tests must demonstrate source diagnostics, type mismatches, malformed slot usage, and normalized-name collisions. Incremental fixture builds must observe template-only edits.
 
-Typed-view fixtures also compile ordinary ESW, generic HEEx, and structured live methods; exercise properties, helpers, optional errors, and escaped values; reject misspelled members and wrong initializer types; verify public methods from another module; and prove that edits to either the template or the annotated Swift source regenerate the renderer.
+Typed-view fixtures also compile ordinary ESW, generic HESW (HTML-aware ESW), and structured live methods; exercise properties, helpers, optional errors, and escaped values; reject misspelled members and wrong initializer types; verify public methods from another module; and prove that edits to either the template or the annotated Swift source regenerate the renderer.
 
 Keyed comprehension tests cover insert/reorder/update/delete, nested scopes, empty lists, row shape changes, component slots, duplicate-key recovery, and malformed snapshots. `npm run test:keyed --prefix BrowserTests` consumes real Swift-encoded patches and verifies JavaScript reconstruction plus browser focus, selection, row identity and draft preservation.

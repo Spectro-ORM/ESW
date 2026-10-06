@@ -44,8 +44,8 @@ public struct TemplateView: Sendable {
                   let path = literal.representedLiteralValue,
                   !path.isEmpty, !path.hasPrefix("/"), !path.contains("\\"),
                   !path.contains(where: { $0.isNewline || $0 == "\0" }),
-                  path.hasSuffix(".esw") || path.hasSuffix(".heex") else {
-                throw invalid(attribute, "@ESWTemplate requires one literal .esw or .heex path relative to this Swift file")
+                  [".esw", ".hesw", ".heex"].contains(where: path.hasSuffix) else {
+                throw invalid(attribute, "@ESWTemplate requires one literal .esw or .hesw path relative to this Swift file")
             }
             views.append(try TemplateView(type: type, imports: imports(in: tree.statements),
                                           sourceFile: sourceFile, templatePath: path))

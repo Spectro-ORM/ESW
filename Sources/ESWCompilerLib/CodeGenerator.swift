@@ -13,7 +13,7 @@ public struct CodeGenerator {
     private let keyedBufferName: String
 
     /// Creates a generator for a previously parsed and resolved template.
-    /// Logical filenames control generated names and the `.live.heex` return type.
+    /// Logical filenames control generated names and the `.live.hesw` return type.
     public init(
         renderNodes: [RenderNode],
         parameters: [Parameter],
@@ -120,7 +120,7 @@ public struct CodeGenerator {
         lines.append("    return \(bufferName).finalize()")
     }
 
-    private var isLiveFile: Bool { filename.hasSuffix(".live.heex") }
+    private var isLiveFile: Bool { TemplateSyntax.isLive(path: filename) }
     private var returnType: String { isLiveFile ? "ESWLiveRender" : "String" }
 
     private func buildParamList() -> String {

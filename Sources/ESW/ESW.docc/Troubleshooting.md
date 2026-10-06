@@ -48,9 +48,9 @@ not sanitize arbitrary HTML.
 
 ### Two templates generate the same symbol
 
-The plugin derives names from logical paths. `user-card.heex` and `user_card.heex`
+The plugin derives names from logical paths. `user-card.hesw` and `user_card.hesw`
 both become `renderUserCard`. Rename one file. Nested names such as
-`users/index.heex` and `posts/index.heex` remain distinct. Two templates
+`users/index.hesw` and `posts/index.hesw` remain distinct. Two templates
 cannot both generate the same struct's `render()` method.
 
 ### File macros cannot read a template
@@ -69,7 +69,14 @@ to disable code signing or move source files merely to choose another build path
 
 ### Live behavior differs from Phoenix
 
-Use `esw-click`, `esw-submit`, and `esw-change` with an ESW HTTP adapter. The HEEx
-syntax does not imply Phoenix's transport, JavaScript client, stateful components,
-or navigation APIs. Live state is process-local; reconnecting to a retained
-instance differs from restarting the application.
+Use `esw-click`, `esw-submit`, and `esw-change` with an ESW HTTP adapter. HESW's
+HEEx-inspired syntax does not imply Phoenix's transport, JavaScript client,
+stateful components, or navigation APIs. Live state is process-local;
+reconnecting to a retained instance differs from restarting the application.
+
+### A template or view still uses `heex` or `LiveView`
+
+ESW renamed the HTML-aware syntax to HESW and the live view protocol to
+`Interactive`. `.heex` files, `#heex`, `--heex`, `TemplateSyntax.heex`, and
+`LiveView` still work as deprecated aliases and will be removed in ESW 2.0.
+Rename `.heex` and `.live.heex` files to `.hesw` and `.live.hesw`.

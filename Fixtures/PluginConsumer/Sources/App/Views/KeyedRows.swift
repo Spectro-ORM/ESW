@@ -6,7 +6,7 @@ struct KeyedRow {
     let name: String
 }
 
-@ESWTemplate("keyed-rows.live.heex")
+@ESWTemplate("keyed-rows.live.hesw")
 struct KeyedRows {
     let rows: [KeyedRow]
 }

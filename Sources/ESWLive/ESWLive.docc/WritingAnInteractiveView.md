@@ -1,4 +1,4 @@
-# Writing a live view
+# Writing an interactive view
 
 Describe state transitions in Swift and render them with an ESW live template.
 
@@ -15,7 +15,7 @@ The current package requires Swift 6.3+ and macOS 14+.
 ```swift
 import ESWLive
 
-struct Counter: LiveView {
+struct Counter: Interactive {
     func mount(_ context: LiveContext) async throws -> Int { 0 }
 
     func handleEvent(_ event: LiveEvent, state: Int) async throws -> Int {

@@ -9,11 +9,11 @@ struct TemplateViewTests {
         struct Helper {}
         @ESWTemplate("auth/register.esw")
         struct RegisterView { var email = "" }
-        @ESW.ESWTemplate("card.heex")
+        @ESW.ESWTemplate("card.hesw")
         public struct Card<Value> { let value: Value }
         """#, sourceFile: "Views.swift")
         #expect(views.map(\.typeName) == ["RegisterView", "Card"])
-        #expect(views.map(\.templatePath) == ["auth/register.esw", "card.heex"])
+        #expect(views.map(\.templatePath) == ["auth/register.esw", "card.hesw"])
         #expect(views[0].imports == ["import Foundation"])
         #expect(views[1].accessModifier == "public ")
         #expect(try TemplateView.discover(source: "struct Helper {}", sourceFile: "Helper.swift").isEmpty)
@@ -66,7 +66,7 @@ struct TemplateViewTests {
         #endif
         #endif
         struct Card<Value> { let value: Value }
-        """, sourceFile: "card.heex.swift")
+        """, sourceFile: "card.hesw.swift")
         #expect(view.typeName == "Card")
         #expect(view.imports == ["""
         #if canImport(Foundation)
@@ -108,9 +108,9 @@ struct TemplateViewTests {
     }
 
     @Test func liveViewsKeepStructuredRenderingAndTypedPartialsOnlyGenerateMethods() throws {
-        let view = try TemplateView(source: "struct Counter { let count: Int }", sourceFile: "_counter.live.heex.swift")
-        let output = try compile(source: "<output>{count}</output>", filename: "_counter.live.heex",
-                                 sourceFile: "_counter.live.heex", view: view)
+        let view = try TemplateView(source: "struct Counter { let count: Int }", sourceFile: "_counter.live.hesw.swift")
+        let output = try compile(source: "<output>{count}</output>", filename: "_counter.live.hesw",
+                                 sourceFile: "_counter.live.hesw", view: view)
         #expect(output.contains("func render() -> ESWLiveRender"))
         #expect(output.contains("ESWLiveBuffer()"))
         #expect(!output.contains("_renderCounterLiveBuffer"))
@@ -119,7 +119,7 @@ struct TemplateViewTests {
     @Test func batchChecksTheGeneratedSymbols() throws {
         let view = try TemplateView(source: "struct Card {}", sourceFile: "card.esw.swift")
         let typed = TemplateSource(name: "user_card.esw", source: "Typed", sourceFile: "user_card.esw", view: view)
-        let legacy = TemplateSource(name: "user-card.heex", source: "Legacy", sourceFile: "user-card.heex")
+        let legacy = TemplateSource(name: "user-card.hesw", source: "Legacy", sourceFile: "user-card.hesw")
         #expect(try compileTemplates([typed, legacy]).contains("extension Card"))
         let duplicate = TemplateSource(name: "other.esw", source: "", sourceFile: "other.esw", view: view)
         #expect(throws: ESWTemplateError.self) { try compileTemplates([typed, duplicate]) }

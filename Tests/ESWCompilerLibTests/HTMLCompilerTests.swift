@@ -4,13 +4,13 @@ import Testing
 @Suite("HTML compiler diagnostics")
 struct HTMLCompilerTests {
     @Test func rawTextRetainsEExEvaluation() throws {
-        let output = try compileExpression(source: "<script>let x = {literal}; <%= value %></script><!-- <%= note %> -->", syntax: .heex)
+        let output = try compileExpression(source: "<script>let x = {literal}; <%= value %></script><!-- <%= note %> -->", syntax: .hesw)
         #expect(output.contains("appendEscaped(value)"))
         #expect(output.contains("appendEscaped(note)"))
     }
 
     @Test func noCurlyInterpolationIsInheritedAndRemoved() throws {
-        let output = try compileExpression(source: "<div phx-no-curly-interpolation><p title={title}>{client}</p><%= value %></div>", syntax: .heex)
+        let output = try compileExpression(source: "<div phx-no-curly-interpolation><p title={title}>{client}</p><%= value %></div>", syntax: .hesw)
         #expect(!output.contains("phx-no-curly-interpolation"))
         #expect(!output.contains("appendEscaped(client)"))
         #expect(output.contains("appendEscaped(value)"))
@@ -18,13 +18,13 @@ struct HTMLCompilerTests {
     }
 
     @Test func qualifiedComponentsCallSwiftFunctions() throws {
-        let output = try compileExpression(source: #"<UI.card title="Title"><:header>Header</:header>Body</UI.card>"#, syntax: .heex)
+        let output = try compileExpression(source: #"<UI.card title="Title"><:header>Header</:header>Body</UI.card>"#, syntax: .hesw)
         #expect(output.contains("UI.card("))
     }
 
     @Test func deferredRepeatedSlotsCompile() throws {
         let source = #"<.table rows={rows}><:column label="Name" :let={row}>{row.name}</:column><:column :for={label in labels} :if={!label.isEmpty} label={label} :let={row}>{row.id}</:column></.table>"#
-        let output = try compile(source: source, filename: "page.heex", sourceFile: "page.heex")
+        let output = try compile(source: source, filename: "page.hesw", sourceFile: "page.hesw")
         #expect(output.contains("ESW.slots"))
     }
 
@@ -49,18 +49,18 @@ struct HTMLCompilerTests {
     ])
     func rejectsMalformedHTML(_ source: String) {
         #expect(throws: (any Error).self) {
-            try compile(source: source, filename: "page.heex", sourceFile: "page.heex")
+            try compile(source: source, filename: "page.hesw", sourceFile: "page.hesw")
         }
     }
 
     @Test func diagnosticIncludesOpeningAndClosingLocations() {
         do {
-            _ = try compile(source: "<div>\n<span>\n</div>", filename: "page.heex", sourceFile: "Views/page.heex")
+            _ = try compile(source: "<div>\n<span>\n</div>", filename: "page.hesw", sourceFile: "Views/page.hesw")
             Issue.record("Expected mismatched tag error")
         } catch let error as ESWHTMLDiagnostic {
             #expect(error.metadata.line == 3)
             #expect(error.metadata.column == 1)
-            #expect(error.description.contains("Views/page.heex:3:1: error:"))
+            #expect(error.description.contains("Views/page.hesw:3:1: error:"))
             #expect(error.message.contains("line 2"))
             #expect(error.message.contains("</span>"))
         } catch { Issue.record("Unexpected error: \(error)") }

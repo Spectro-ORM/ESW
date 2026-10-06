@@ -1,6 +1,6 @@
 /// Generates Swift source for a template renderer without executing the template.
 ///
-/// Ordinary templates generate a function returning `String`. A `.live.heex`
+/// Ordinary templates generate a function returning `String`. A `.live.hesw`
 /// filename selects `ESWLiveRender`; a supplied ``TemplateView`` generates a
 /// `render()` extension instead of a free function. The Swift compiler subsequently
 /// type-checks expressions, component calls, and member access in the output.
@@ -10,7 +10,7 @@
 ///   - filename: Logical template path used for function naming and syntax selection.
 ///   - sourceFile: Original path used in diagnostics and source-location directives.
 ///   - emitSourceLocations: Whether to map generated Swift back to the template.
-///   - syntax: An explicit syntax, or nil to infer HEEx from the `.heex` suffix.
+///   - syntax: An explicit syntax, or nil to infer HESW from the `.hesw` suffix.
 ///   - view: Optional metadata parsed from the associated Swift view file.
 /// - Returns: Swift declarations, including their required imports.
 /// - Throws: A template syntax, declaration, component, or validation diagnostic.
@@ -44,7 +44,7 @@ public func compileExpression(source: String, sourceFile: String = "<inline>", s
 
 private func generator(source: String, filename: String, sourceFile: String,
                        emitSourceLocations: Bool, syntax: TemplateSyntax?, view: TemplateView? = nil) throws -> CodeGenerator {
-    let syntax = syntax ?? (filename.hasSuffix(".heex") ? .heex : .esw)
+    let syntax = syntax ?? TemplateSyntax(path: filename)
     var tokenizer = Tokenizer(source: source, file: sourceFile, syntax: syntax)
     let rawTokens = coalescedText(try tokenizer.tokenize())
     let trimmedTokens = WhitespaceTrimmer.trim(rawTokens)

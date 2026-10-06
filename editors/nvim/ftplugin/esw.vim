@@ -6,5 +6,5 @@ setlocal commentstring=<%!--\ %s\ --%>
 setlocal comments=
 let b:undo_ftplugin .= ' | setlocal commentstring< comments<'
 
-" A buffer may previously have been opened as Phoenix HEEx.
+" A deprecated .heex buffer may previously have been opened as Phoenix HEEx.
 lua pcall(vim.treesitter.stop, vim.api.nvim_get_current_buf())

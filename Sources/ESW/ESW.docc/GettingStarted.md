@@ -27,13 +27,13 @@ name. Application source imports the `ESW` module.
 
 ### Render a fragment
 
-An inline ``heex(_:)`` template captures values from its surrounding Swift scope:
+An inline ``hesw(_:)`` template captures values from its surrounding Swift scope:
 
 ```swift
 import ESW
 
 let names = ["Ada", "Grace & Hopper"]
-let html = #heex("""
+let html = #hesw("""
 <section>
   <h1>People</h1>
   <ul><li :for={name in names}>{name}</li></ul>
@@ -54,11 +54,11 @@ Swift string interpolation; place expressions in `{...}` or `<%= ... %>` instead
 | Entry point | Result | Use it for |
 | --- | --- | --- |
 | `#esw("...")` | `String` | Text templates and HTML fragments using EEx-style tags. |
-| `#heex("...")` | `String` | HTML-aware inline templates with brace expressions and directives. |
+| `#hesw("...")` | `String` | HTML-aware inline templates with brace expressions and directives. |
 | `#live("...")` | `ESWLiveRender` | Structured HTML output for live updates. |
-| `ESWBuildPlugin` + `.esw` / `.heex` | Generated `String` renderer | File templates tracked as build inputs. |
-| `ESWBuildPlugin` + `.live.heex` | Generated `ESWLiveRender` renderer | Live file templates. |
-| `#render("page.heex")` | `String` | Compile-time file expansion capturing local variables. |
+| `ESWBuildPlugin` + `.esw` / `.hesw` | Generated `String` renderer | File templates tracked as build inputs. |
+| `ESWBuildPlugin` + `.live.hesw` | Generated `ESWLiveRender` renderer | Live file templates. |
+| `#render("page.hesw")` | `String` | Compile-time file expansion capturing local variables. |
 
 Use the build plugin for file templates that need reliable incremental rebuilds.
 The file macro's read does not declare a SwiftPM dependency on that template.
@@ -67,7 +67,7 @@ It also needs compile-time filesystem access, which may require
 
 ### Add live behavior
 
-Add `.product(name: "ESWLive", package: "esw")` when you need the `LiveView`,
+Add `.product(name: "ESWLive", package: "esw")` when you need the `Interactive`,
 `LiveSession`, and `LiveHost` APIs. That module re-exports `ESW`. A transport adapter
 is still responsible for HTTP routes, browser connections, sessions, and CSRF.
 

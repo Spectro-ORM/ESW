@@ -1,6 +1,6 @@
 # ``ESWCompilerLib``
 
-Compile ESW and HEEx templates into Swift source for macros, build tools, and custom integrations.
+Compile ESW and HESW (HTML-aware ESW) templates into Swift source for macros, build tools, and custom integrations.
 
 ## Overview
 

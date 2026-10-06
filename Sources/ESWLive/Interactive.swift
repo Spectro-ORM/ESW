@@ -3,7 +3,7 @@ import Foundation
 
 /// An application defines the state, loads it, handles events, and renders it.
 /// Authorization of domain operations belongs in `handleEvent`.
-public protocol LiveView: Sendable {
+public protocol Interactive: Sendable {
     /// The value owned by one live session. Prefer value types for state transitions.
     associatedtype State: Sendable
     /// Loads state for the initial render and again for the first connection.
@@ -15,6 +15,9 @@ public protocol LiveView: Sendable {
     /// Synchronously renders state, usually with the ESW `#live` macro.
     func render(_ state: State) -> ESWLiveRender
 }
+
+@available(*, deprecated, renamed: "Interactive")
+public typealias LiveView = Interactive
 
 /// Mount inputs supplied by an application's server adapter.
 public struct LiveContext: Sendable {

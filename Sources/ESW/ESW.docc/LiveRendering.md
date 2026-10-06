@@ -67,17 +67,17 @@ the same version.
 
 ### File templates
 
-The build plugin recognizes the full `.live.heex` suffix. Without an associated view,
-`counter.live.heex` becomes `renderCounterLive(...) -> ESWLiveRender`. With a
-view annotated `@ESWTemplate("counter.live.heex")`, its `render()` method returns the same
+The build plugin recognizes the full `.live.hesw` suffix. Without an associated view,
+`counter.live.hesw` becomes `renderCounterLive(...) -> ESWLiveRender`. With a
+view annotated `@ESWTemplate("counter.live.hesw")`, its `render()` method returns the same
 type. See <doc:FileTemplates>.
 
-Ordinary `.heex` and `.esw` renderers return strings. `#render("counter.live.heex")`
+Ordinary `.hesw` and `.esw` renderers return strings. `#render("counter.live.hesw")`
 also returns `String`; use the build plugin or `#live` for structured output.
 
 ### State and transport
 
-The `ESWLive` product adds a `LiveView` protocol, serialized actor sessions,
+The `ESWLive` product adds an `Interactive` protocol, serialized actor sessions,
 revisioned events, and owner-bound instance registries. It is a separate library
 so plain template rendering needs no stateful runtime.
 

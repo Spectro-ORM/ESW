@@ -4,7 +4,7 @@ import Nexus
 
 /// A live route uses the application's server-side session middleware.
 /// `authorize` runs on the initial page and every stream/event request.
-public struct PeregrineLive<View: LiveView>: Sendable {
+public struct PeregrineLive<View: Interactive>: Sendable {
     public let host: LiveHost<View>
     public let path: String
     private let authorize: @Sendable (Connection) async throws -> Void

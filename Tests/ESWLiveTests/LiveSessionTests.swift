@@ -1,7 +1,7 @@
 import ESWLive
 import Testing
 
-private struct Counter: LiveView {
+private struct Counter: Interactive {
     func mount(_ context: LiveContext) async throws -> Int { context.isConnected ? 1 : 0 }
     func handleEvent(_ event: LiveEvent, state: Int) async throws -> Int {
         if event.name == "fail" { throw LiveError.invalidEvent }
@@ -25,7 +25,7 @@ private actor Signal {
     }
 }
 
-private struct SuspendedView: LiveView {
+private struct SuspendedView: Interactive {
     let started: Signal
     let release: Signal
     var suspendMount = false

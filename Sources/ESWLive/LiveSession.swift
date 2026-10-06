@@ -3,7 +3,7 @@ import Foundation
 
 /// One server-owned view. An explicit queue covers the entire async mutation,
 /// because actor isolation alone permits other events to run during `await`.
-public actor LiveSession<View: LiveView> {
+public actor LiveSession<View: Interactive> {
     private let view: View
     private let context: LiveContext
     private var state: View.State

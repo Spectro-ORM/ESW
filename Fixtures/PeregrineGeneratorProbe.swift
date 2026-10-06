@@ -41,7 +41,7 @@ struct RoostGeneratorProbe {
         try write("Views/auth/login.esw", AuthTemplates.loginTemplate())
         try write("Views/auth/register.esw", AuthTemplates.registerTemplate())
         try write("Views/layout.esw", ProjectTemplates.layoutESW(appName: "Probe"))
-        precondition(ProjectTemplates.tailwindConfig(appName: "Probe").contains("*.{esw,heex}"))
+        precondition(ProjectTemplates.tailwindConfig(appName: "Probe").contains("*.{esw,hesw}"))
         for includeESW in [true, false] {
             try write("manifest-\(includeESW)/Package.swift", ProjectTemplates.packageSwift(appName: "Probe", includeDB: false, includeESW: includeESW))
         }

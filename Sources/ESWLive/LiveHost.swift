@@ -2,7 +2,7 @@ import Foundation
 
 /// Owns live instances for one route. IDs are opaque and bound to a trusted
 /// owner supplied by the HTTP adapter. Instances expire after a fixed lifetime.
-public actor LiveHost<View: LiveView> {
+public actor LiveHost<View: Interactive> {
     private struct Entry: Sendable {
         let owner: String
         let session: LiveSession<View>

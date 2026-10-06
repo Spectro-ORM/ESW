@@ -1,6 +1,6 @@
 /// One template with a logical path relative to its template root.
 public struct TemplateSource: Sendable {
-    /// Logical path, such as `users/index.heex`, used to derive generated names.
+    /// Logical path, such as `users/index.hesw`, used to derive generated names.
     public let name: String
     /// Complete template text.
     public let source: String

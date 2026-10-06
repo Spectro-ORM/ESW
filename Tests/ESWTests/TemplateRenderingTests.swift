@@ -56,44 +56,44 @@ struct TemplateRenderingTests {
         let name = "\"<&"
         let disabled = false
         let title: String? = nil
-        #expect(#heex("<button title={title} disabled={disabled}>{name}</button>") == "<button>&quot;&lt;&amp;</button>")
-        #expect(#heex("<input disabled={true} />") == "<input disabled />")
+        #expect(#hesw("<button title={title} disabled={disabled}>{name}</button>") == "<button>&quot;&lt;&amp;</button>")
+        #expect(#hesw("<input disabled={true} />") == "<input disabled />")
     }
 
     @Test func bareComponentFlagBeforeOtherAttributes() {
         #expect(#esw(#"<.button disabled label="Save" />"#) == "<button disabled>Save</button>")
-        #expect(#heex(#"<.button disabled :if={true} label="Save" />"#) == "<button disabled>Save</button>")
+        #expect(#hesw(#"<.button disabled :if={true} label="Save" />"#) == "<button disabled>Save</button>")
     }
 
     @Test func htmlTagNamesPreserveSourceCase() {
-        #expect(#heex("<svg><linearGradient></linearGradient></svg>") == "<svg><linearGradient></linearGradient></svg>")
-        #expect(#heex("<DIV>Text</DIV>") == "<DIV>Text</DIV>")
+        #expect(#hesw("<svg><linearGradient></linearGradient></svg>") == "<svg><linearGradient></linearGradient></svg>")
+        #expect(#hesw("<DIV>Text</DIV>") == "<DIV>Text</DIV>")
     }
 
     @Test func classListsAndAttributeMaps() {
         let active = true
         let attrs: [String: Any?] = ["title": "\"<", "hidden": false, "aria-expanded": false]
-        let html = #heex(#"<div class={["button", active ? "active" : nil]} {attrs}></div>"#)
+        let html = #hesw(#"<div class={["button", active ? "active" : nil]} {attrs}></div>"#)
         #expect(html == "<div class=\"button active\" aria-expanded=\"false\" title=\"&quot;&lt;\"></div>")
     }
 
     @Test func directivesUseSwiftScope() {
         let items = [0, 1, 2]
-        let html = #heex("<ul><li :if={item > 0} :for={item in items}>{item}</li></ul>")
+        let html = #hesw("<ul><li :if={item > 0} :for={item in items}>{item}</li></ul>")
         #expect(html == "<ul><li>1</li><li>2</li></ul>")
-        let components = #heex(#"<.badge :for={item in items} :if={item > 1} label={String(item)} class="count" />"#)
+        let components = #hesw(#"<.badge :for={item in items} :if={item > 1} label={String(item)} class="count" />"#)
         #expect(components == "<b class=\"count\">2</b>")
-        #expect(#heex("<.card :if={false}>hidden</.card>tail") == "tail")
+        #expect(#hesw("<.card :if={false}>hidden</.card>tail") == "tail")
     }
 
     @Test func htmlCommentsAndRawTextStayLiteral() {
-        #expect(#heex("<!-- <.missing> {ignored} --><script>if (x) { y = '<div>'; }</script>") == "<!-- <.missing> {ignored} --><script>if (x) { y = '<div>'; }</script>")
-        #expect(#heex(#"<p>\{literal\}</p>"#) == "<p>{literal}</p>")
+        #expect(#hesw("<!-- <.missing> {ignored} --><script>if (x) { y = '<div>'; }</script>") == "<!-- <.missing> {ignored} --><script>if (x) { y = '<div>'; }</script>")
+        #expect(#hesw(#"<p>\{literal\}</p>"#) == "<p>{literal}</p>")
     }
 
     @Test func trustedHTMLDoesNotBypassAttributeEscaping() {
         let value = render("\" onmouseover=\"bad")
-        #expect(#heex("<p title={value}>{value}</p>") == "<p title=\"&quot; onmouseover=&quot;bad\">\" onmouseover=\"bad</p>")
+        #expect(#hesw("<p title={value}>{value}</p>") == "<p title=\"&quot; onmouseover=&quot;bad\">\" onmouseover=\"bad</p>")
         #expect(ESW.attributes(["bad\" name": "x", "data-ok": "yes"]) == " data-ok=\"yes\"")
     }
 }

@@ -109,7 +109,7 @@ buffer([[<section :if={true} class={["one", "two"]}>
 <style>.example { color: red; }</style>
 <!-- {htmlComment} -->
 <p>\{escaped}</p>
-</section>]], "eswheex")
+</section>]], "hesw")
 expect(":if", "PreProc")
 expect("{true}", "Constant", 1)
 expect('"one"', "String")
@@ -125,23 +125,14 @@ assert(group("javascript") ~= "Identifier", "JavaScript was highlighted as Swift
 assert(group("color:") ~= "Identifier", "CSS was highlighted as Swift")
 checks = checks + 2
 
--- Filetype association must not replace Phoenix HEEx.
-local tmp = vim.fn.tempname()
-vim.fn.mkdir(tmp .. "/swift/phoenix/views", "p")
-vim.fn.mkdir(tmp .. "/plain", "p")
-vim.fn.writefile({ '.product(name: "ESW", package: "esw")' }, tmp .. "/swift/Package.swift")
-vim.fn.writefile({ "defmodule App.MixProject do" }, tmp .. "/swift/phoenix/mix.exs")
-vim.fn.writefile({ 'let package = Package(name: "Plain")' }, tmp .. "/plain/Package.swift")
+-- Filetypes follow the extension; Phoenix HEEx keeps its own filetype.
 local function filetype(path)
   return vim.filetype.match({ filename = path })
 end
-eq("esw", filetype(tmp .. "/login.esw"), "ESW extension")
-eq("eswheex", filetype(tmp .. "/swift/views/counter.live.heex"), "Swift HEEx")
-eq("heex", filetype(tmp .. "/swift/phoenix/views/index.html.heex"), "nested Phoenix HEEx")
-eq("heex", filetype(tmp .. "/plain/index.heex"), "unrelated Swift package")
-eq("heex", filetype(tmp .. "/index.heex"), "standalone Phoenix HEEx")
-eq("html", filetype(tmp .. "/index.html"), "ordinary HTML")
-vim.fn.delete(tmp, "rf")
+eq("esw", filetype("login.esw"), "ESW extension")
+eq("hesw", filetype("counter.live.hesw"), "HESW extension")
+eq("heex", filetype("index.html.heex"), "Phoenix HEEx")
+eq("html", filetype("index.html"), "ordinary HTML")
 
 -- Changing filetypes and reloading syntax uses the standard buffer lifecycle.
 buffer("<p><%= name %></p>")

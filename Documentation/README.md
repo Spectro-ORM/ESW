@@ -7,7 +7,7 @@ document this development checkout; not every API is in a published ESW release.
 | Library | Start here | Responsibility |
 | --- | --- | --- |
 | `ESW` | [Overview](../Sources/ESW/ESW.docc/ESW.md) · [Getting started](../Sources/ESW/ESW.docc/GettingStarted.md) | Templates, escaping, components, slots, assets, and structured render output. |
-| `ESWLive` | [Overview](../Sources/ESWLive/ESWLive.docc/ESWLive.md) · [Writing a live view](../Sources/ESWLive/ESWLive.docc/WritingALiveView.md) | State, serialized events, retries, ownership, and browser integration. |
+| `ESWLive` | [Overview](../Sources/ESWLive/ESWLive.docc/ESWLive.md) · [Writing an interactive view](../Sources/ESWLive/ESWLive.docc/WritingAnInteractiveView.md) | State, serialized events, retries, ownership, and browser integration. |
 | `ESWCompilerLib` | [Overview](../Sources/ESWCompilerLib/ESWCompilerLib.docc/ESWCompilerLib.md) · [Compiling templates](../Sources/ESWCompilerLib/ESWCompilerLib.docc/CompilingTemplates.md) | Source generation for macros and build tools. |
 
 ## Build and browse

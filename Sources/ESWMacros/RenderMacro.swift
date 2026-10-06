@@ -59,7 +59,7 @@ public struct RenderMacro: ExpressionMacro {
         } catch {
             throw ESWMacroError("Cannot read template '\(templatePath)': \(error.localizedDescription)")
         }
-        return try expand(source: source, file: resolvedPath, syntax: resolvedPath.hasSuffix(".heex") ? .heex : .esw)
+        return try expand(source: source, file: resolvedPath, syntax: TemplateSyntax(path: resolvedPath))
     }
 
     // MARK: - Shared expansion (reused by InlineESWMacro)

@@ -14,7 +14,7 @@ renders as an empty string. Booleans render as `true` or `false`.
 import ESW
 
 let name: String? = "<Ada & Grace>"
-let html = #heex("<p>{name}</p>")
+let html = #hesw("<p>{name}</p>")
 // <p>&lt;Ada &amp; Grace&gt;</p>
 ```
 
@@ -23,8 +23,8 @@ let html = #heex("<p>{name}</p>")
 Use the `render(...)` function to embed output from another trusted renderer:
 
 ```swift
-let child = #heex("<strong>{name}</strong>")
-let page = #heex("<main>{render(child)}</main>")
+let child = #hesw("<strong>{name}</strong>")
+let page = #hesw("<main>{render(child)}</main>")
 ```
 
 The function returns ``ESWValue/safe(_:)``. It differs from the `#render(...)` macro,
@@ -37,7 +37,7 @@ not necessary for ordinary strings, which already receive default escaping.
 ### Attribute boundaries
 
 ``ESW/attribute(_:_:)`` escapes both safe and unsafe strings for a quoted attribute.
-Trust for an HTML body never bypasses attribute escaping. Dynamic HEEx attributes
+Trust for an HTML body never bypasses attribute escaping. Dynamic HESW (HTML-aware ESW) attributes
 and spreads use these helpers automatically.
 
 HTML escaping does not establish a URL scheme policy, sanitize HTML, encode
@@ -52,7 +52,7 @@ than inserting a user string into a script body.
 
 ```swift
 let assets = AssetManifest(entries: ["app.css": "/assets/app-a1b2.css"])
-let html = #heex("<link rel=\"stylesheet\" href={assets.path(for: \"app.css\")} />")
+let html = #hesw("<link rel=\"stylesheet\" href={assets.path(for: \"app.css\")} />")
 ```
 
 A JSON file can supply the same `[String: String]` mapping:

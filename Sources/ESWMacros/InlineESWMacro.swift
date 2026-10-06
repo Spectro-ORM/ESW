@@ -3,9 +3,9 @@ import SwiftSyntaxMacros
 import SwiftParser
 import ESWCompilerLib
 
-// MARK: - #esw and #heex
+// MARK: - #esw, #hesw and #live
 
-/// Implements `#esw("...")` and `#heex("...")`.
+/// Implements `#esw("...")`, `#hesw("...")` and `#live("...")`.
 ///
 /// Parses the template string literal at compile time and expands to the same
 /// immediately-invoked closure as `#render`, without reading any file.
@@ -20,7 +20,7 @@ public struct InlineESWMacro: ExpressionMacro {
     ) throws -> ExprSyntax {
         let macroName = "#" + node.macroName.text
         let live = node.macroName.text == "live"
-        let syntax: TemplateSyntax = node.macroName.text == "heex" || live ? .heex : .esw
+        let syntax: TemplateSyntax = ["hesw", "heex", "live"].contains(node.macroName.text) ? .hesw : .esw
         guard let firstArg = node.arguments.first else {
             throw ESWMacroError("\(macroName) requires a template string as its first argument")
         }
@@ -34,7 +34,7 @@ public struct InlineESWMacro: ExpressionMacro {
             if segment.as(ExpressionSegmentSyntax.self) != nil {
                 throw ESWMacroError(
                     "\(macroName): Swift string interpolation (\\(...)) is not allowed inside templates. " +
-                    (syntax == .heex ? "Use {expression} instead." : "Use ESW output tags (<%= ... %>) instead.")
+                    (syntax == .hesw ? "Use {expression} instead." : "Use ESW output tags (<%= ... %>) instead.")
                 )
             }
         }

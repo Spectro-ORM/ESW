@@ -1,6 +1,6 @@
 #!/bin/bash
 # Development watch script for ESW
-# Watches .esw and .heex files and rebuilds when they change
+# Watches .esw and .hesw files and rebuilds when they change
 #
 # Usage:
 #   ./scripts/dev_watch.sh
@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-echo "🔍 Watching .esw and .heex files in $PROJECT_ROOT"
+echo "🔍 Watching .esw and .hesw files in $PROJECT_ROOT"
 echo "🔄 Will rebuild on changes..."
 echo ""
 echo "Press Ctrl+C to stop"
@@ -24,7 +24,7 @@ echo ""
 fswatch -o -r "$PROJECT_ROOT" --event=Updated --event=Created --event=Removed --event=Renamed \
   --extended \
   --filter-mode=conjunctive \
-  --include='\.(esw|heex)$' \
+  --include='\.(esw|hesw|heex)$' \
   --exclude='/\.(build|git)(/|$)' | while read -r num; do
   echo ""
   echo "📝 Changes detected ($num file(s) affected)"

@@ -93,7 +93,7 @@ assert(#render("_greeting.esw") == _renderGreetingBuffer(name: name))
 let items = ["<swift>"]
 let counts = ["<swift>": 2]
 let show = true
-assert(#render("tasks.heex") == tasks)
+assert(#render("tasks.hesw") == tasks)
 let usersPage = renderUsersIndex(users: ["<Ada>"])
 assert(usersPage.contains("<h1>User directory</h1><time>0</time><p>&lt;Ada&gt;</p>"))
 assert(renderPostsIndex(posts: ["<post>"]).contains("<li>&lt;post&gt;</li>"))
@@ -122,7 +122,7 @@ if CommandLine.arguments.dropFirst().first == "--typed-template",
    let marker = CommandLine.arguments.dropFirst(2).first {
     assert(registration.contains(marker), "A typed template-only edit must update render()")
 }
-print("All ESW, HEEx, macro, namespaced template, typed view, and typed slot fixture assertions passed.")
+print("All ESW, HESW, macro, namespaced template, typed view, and typed slot fixture assertions passed.")
 if CommandLine.arguments.dropFirst().first == "--keyed-wire" {
     print("KEYED_WIRE:" + (try keyedWireFixture()))
 }

@@ -39,15 +39,15 @@ evaluation is synchronous.
 
 ### HTML mode
 
-`.heex`, `.live.heex`, `#heex`, and `#live` validate HTML structure and support
-brace expressions. EEx-style tags remain available.
+HESW (HTML-aware ESW) applies to `.hesw`, `.live.hesw`, `#hesw`, and `#live`.
+It validates HTML structure and supports brace expressions. EEx-style tags remain available.
 
 ```swift
 import ESW
 
 let items = ["Swift", "HTML"]
 let enabled = true
-let html = #heex("""
+let html = #hesw("""
 <section class={["items", enabled ? "enabled" : nil]}>
   <p :if={items.isEmpty}>Nothing here yet.</p>
   <ul><li :for={item in items}>{item}</li></ul>
@@ -116,7 +116,7 @@ Use `\{` and `\}` for literal braces in interpolated body text. In a Swift liter
 use a raw string so Swift preserves those backslashes:
 
 ```swift
-let html = #heex(#"<p>Use \{name\} as a placeholder.</p>"#)
+let html = #hesw(#"<p>Use \{name\} as a placeholder.</p>"#)
 ```
 
 The syntax is inspired by EEx and HEEx, but expressions are Swift and the live

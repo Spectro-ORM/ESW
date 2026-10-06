@@ -58,9 +58,9 @@
           </h1>
           <p class="hero-description">Templates compiled into Swift functions.</p>
           <p class="hero-detail">
-            Familiar EEx and HEEx syntax, checked by the Swift compiler at build
-            time. Typed components, escaping by default, and live views when
-            you need them.
+            EEx-style tags and HTML-aware HESW templates, checked by the Swift
+            compiler at build time. Typed components, escaping by default, and
+            live views when you need them.
           </p>
           <div class="hero-actions">
             <a class="button" href="#install"
@@ -70,7 +70,7 @@
               >Explore the source <span aria-hidden="true">↗</span></a
             >
           </div>
-          <p class="hero-note">ESW 1.5 · Swift 6.3 · Build plugin</p>
+          <p class="hero-note">ESW 1.6 · Swift 6.3 · Build plugin</p>
         </div>
         <div class="hello-window code-window">
           <div class="window-bar">
@@ -153,7 +153,7 @@
             <article>
               <h3>Compiled at build time.</h3>
               <p>
-                ESWBuildPlugin turns every .esw and .heex file into a plain
+                ESWBuildPlugin turns every .esw and .hesw file into a plain
                 Swift function. No runtime parsing; template typos fail the
                 build.
               </p>
@@ -258,7 +258,7 @@
                   compiles to Card.render(title:footer:content:), with named
                   slots passed as arguments.
                 </p>
-                <span class="source-label">Card.swift · profile.heex</span>
+                <span class="source-label">Card.swift · profile.hesw</span>
               </div>
               <div class="tour-code">
                 <button
@@ -271,7 +271,7 @@
                 </button>
                 <pre tabindex="0"><code id="component-code"><span class="light-key">struct</span> Card: ESWComponent {
     <span class="light-key">static func</span> render(title: String, footer: String = <span class="light-string">""</span>, content: String = <span class="light-string">""</span>) -&gt; String {
-        #heex(<span class="light-string">"""</span>
+        #hesw(<span class="light-string">"""</span>
         &lt;article class="card"&gt;
           &lt;h2&gt;{title}&lt;/h2&gt;
           {ESWValue.safe(content)}
@@ -281,7 +281,7 @@
     }
 }
 
-&lt;!-- Views/profile.heex --&gt;
+&lt;!-- Views/profile.hesw --&gt;
 &lt;.card title={user.name}&gt;
   &lt;p&gt;{user.bio}&lt;/p&gt;
   &lt;:footer&gt;Member since {user.joinedYear}&lt;/:footer&gt;
@@ -309,7 +309,7 @@
                 </button>
                 <pre tabindex="0"><code id="live-code"><span class="light-key">import</span> ESWLive
 
-<span class="light-key">struct</span> Counter: LiveView {
+<span class="light-key">struct</span> Counter: Interactive {
     <span class="light-key">func</span> mount(_ context: LiveContext) <span class="light-key">async throws</span> -&gt; Int { 0 }
 
     <span class="light-key">func</span> handleEvent(_ event: LiveEvent, state: Int) <span class="light-key">async throws</span> -&gt; Int {
@@ -345,7 +345,7 @@
             <h3>One plugin does the compiling.</h3>
             <p>
               Depend on ESW, and ESWLive for live views. Attach ESWBuildPlugin
-              and put .esw or .heex files in your target; each becomes a render
+              and put .esw or .hesw files in your target; each becomes a render
               function at build time.
             </p>
             <p>Swift 6.3+ · macOS 14+</p>
@@ -370,7 +370,7 @@
             <pre
               tabindex="0"
               aria-label="ESW package configuration"
-            ><code id="install-code">.<span class="syn-call">package</span>(url: <span class="syn-string">"https://github.com/roost-framework/ESW.git"</span>, from: <span class="syn-string">"1.5.0"</span>)
+            ><code id="install-code">.<span class="syn-call">package</span>(url: <span class="syn-string">"https://github.com/roost-framework/ESW.git"</span>, from: <span class="syn-string">"1.6.0"</span>)
 
 .<span class="syn-call">target</span>(
     name: <span class="syn-string">"App"</span>,

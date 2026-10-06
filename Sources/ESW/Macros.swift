@@ -10,7 +10,7 @@
 public macro ESWTemplate(_ path: String) =
     #externalMacro(module: "ESWMacros", type: "ESWTemplateMacro")
 
-/// Renders a `.esw` or `.heex` template file at compile time, returning a `String`.
+/// Renders a `.esw` or `.hesw` template file at compile time, returning a `String`.
 /// The file extension selects text or HTML-aware syntax.
 ///
 /// The template file is located by walking up the directory tree from the invoking
@@ -35,7 +35,7 @@ public macro ESWTemplate(_ path: String) =
 /// Compile-time file reads may require `swift build --disable-sandbox`.
 ///
 /// - Parameter templatePath: A literal relative or absolute template path.
-/// - Returns: Complete HTML. Even a `.live.heex` file returns `String` through this macro.
+/// - Returns: Complete HTML. Even a `.live.hesw` file returns `String` through this macro.
 @freestanding(expression)
 public macro render(_ templatePath: String) -> String =
     #externalMacro(module: "ESWMacros", type: "RenderMacro")
@@ -65,24 +65,29 @@ public macro render(_ templatePath: String) -> String =
 public macro esw(_ template: String) -> String =
     #externalMacro(module: "ESWMacros", type: "InlineESWMacro")
 
-/// HTML-aware ESW: balanced tags, `{expression}`, dynamic attributes,
+/// HESW, HTML-aware ESW: balanced tags, `{expression}`, dynamic attributes,
 /// and `:if` / `:for` directives using Swift expressions.
 ///
 /// ```swift
 /// let names = ["Ada", "Grace"]
-/// let html = #heex("<ul><li :for={name in names}>{name}</li></ul>")
+/// let html = #hesw("<ul><li :for={name in names}>{name}</li></ul>")
 /// ```
 ///
 /// The argument must be a string literal without Swift string interpolation.
 /// Values come from the surrounding Swift scope. Use `{value}` for dynamic text
 /// and `title={value}` for dynamic attributes.
 @freestanding(expression)
+public macro hesw(_ template: String) -> String =
+    #externalMacro(module: "ESWMacros", type: "InlineESWMacro")
+
+@available(*, deprecated, renamed: "hesw")
+@freestanding(expression)
 public macro heex(_ template: String) -> String =
     #externalMacro(module: "ESWMacros", type: "InlineESWMacro")
 
-/// Compiles HEEx into a structured snapshot suitable for live DOM updates.
+/// Compiles HESW into a structured snapshot suitable for live DOM updates.
 ///
-/// Authoring and escaping rules match ``heex(_:)``. The result separates literal
+/// Authoring and escaping rules match ``hesw(_:)``. The result separates literal
 /// HTML from dynamic strings; ``ESWLiveRender/html`` produces a complete page
 /// fragment and ``ESWLiveRender/diff(to:)`` computes output changes.
 /// The `ESWLive` module supplies state and event handling separately.

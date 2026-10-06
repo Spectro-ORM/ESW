@@ -33,7 +33,7 @@ to a server adapter such as the Roost playground.
 ### Inline and file macros
 
 - ``esw(_:)``
-- ``heex(_:)``
+- ``hesw(_:)``
 - ``live(_:)``
 - ``render(_:)-macro``
 

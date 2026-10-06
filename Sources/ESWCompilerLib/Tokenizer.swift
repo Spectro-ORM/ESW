@@ -48,7 +48,7 @@ public struct Tokenizer {
         var textColumn = column
 
         while index < source.endIndex {
-            if syntax == .heex, let htmlTokens = try readHTMLToken() {
+            if syntax == .hesw, let htmlTokens = try readHTMLToken() {
                 if !textBuffer.isEmpty {
                     tokens.append(.text(textBuffer, metadata: Metadata(file: file, line: textLine, column: textColumn)))
                     textBuffer = ""
@@ -99,7 +99,7 @@ public struct Tokenizer {
                     throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
                 }
                 advance() // >
-                if syntax == .heex { try closeHTMLElement(":" + name) }
+                if syntax == .hesw { try closeHTMLElement(":" + name) }
                 tokens.append(.slotClose(name: name, metadata: Metadata(file: file, line: tagLine, column: tagColumn)))
                 continue
             }
@@ -116,7 +116,7 @@ public struct Tokenizer {
                 advance() // :
                 let name = try readValidatedComponentName(tagLine: tagLine, tagColumn: tagColumn)
                 let metadata = Metadata(file: file, line: tagLine, column: tagColumn)
-                if syntax == .heex, htmlElements.last?.name.hasPrefix(".") != true {
+                if syntax == .hesw, htmlElements.last?.name.hasPrefix(".") != true {
                     throw htmlDiagnostic("named slots must be direct children of a component", at: metadata)
                 }
                 var attributes = try readComponentAttributes(tagLine: tagLine, tagColumn: tagColumn)
@@ -131,7 +131,7 @@ public struct Tokenizer {
                 if attributes.contains(where: { $0.key == ":key" }) {
                     throw htmlDiagnostic(":key is not supported on slots; use it on an element or component with :for", at: metadata)
                 }
-                if syntax == .heex && !selfClosing {
+                if syntax == .hesw && !selfClosing {
                     openHTMLElement(":" + name, line: tagLine, column: tagColumn, interpolateCurly: interpolateCurly)
                 }
                 tokens.append(.slotOpen(name: name, attributes: attributes, selfClosing: selfClosing, metadata: metadata))
@@ -157,7 +157,7 @@ public struct Tokenizer {
                     throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
                 }
                 advance() // >
-                if syntax == .heex { try closeHTMLElement("." + name) }
+                if syntax == .hesw { try closeHTMLElement("." + name) }
                 tokens.append(.componentClose(name: name, metadata: Metadata(file: file, line: tagLine, column: tagColumn)))
                 continue
             }
@@ -198,7 +198,7 @@ public struct Tokenizer {
                     selfClosing: selfClosing,
                     metadata: Metadata(file: file, line: tagLine, column: tagColumn)
                 ))
-                if syntax == .heex && !selfClosing {
+                if syntax == .hesw && !selfClosing {
                     openHTMLElement("." + name, line: tagLine, column: tagColumn, interpolateCurly: interpolateCurly)
                 }
                 continue
@@ -370,7 +370,7 @@ public struct Tokenizer {
 
     /// The body-only interpolation directive is not a Swift component argument.
     private func consumeCurlyDirective(in attributes: inout [ComponentAttribute], metadata: Metadata) throws -> Bool {
-        guard syntax == .heex else { return true }
+        guard syntax == .hesw else { return true }
         let directives = attributes.filter { $0.key.lowercased() == "phx-no-curly-interpolation" }
         guard !directives.isEmpty else { return true }
         guard directives.count == 1, directives[0].value == nil else {
@@ -392,7 +392,7 @@ public struct Tokenizer {
             if c == ">" || (c == "/" && peek(offset: 1) == ">") { break }
             // Read attribute key
             let key = readAttributeKey()
-            guard let first = key.first, first.isLetter || first == "_" || (syntax == .heex && first == ":"),
+            guard let first = key.first, first.isLetter || first == "_" || (syntax == .hesw && first == ":"),
                   !attrs.contains(where: { $0.key.replacingHyphens() == key.replacingHyphens() }) else {
                 throw ESWTokenizerError.malformedComponentTag(file: file, line: tagLine, column: tagColumn)
             }
@@ -444,7 +444,7 @@ public struct Tokenizer {
     /// Reads an attribute key: letters, digits, hyphens, underscores.
     private mutating func readAttributeKey() -> String {
         var key = ""
-        while let c = peek(), c.isLetter || c.isNumber || c == "-" || c == "_" || (syntax == .heex && c == ":") {
+        while let c = peek(), c.isLetter || c.isNumber || c == "-" || c == "_" || (syntax == .hesw && c == ":") {
             key.append(advance())
         }
         return key

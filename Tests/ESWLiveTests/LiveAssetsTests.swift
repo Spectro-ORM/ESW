@@ -9,6 +9,6 @@ struct LiveAssetsTests {
         #expect(entry.contains("./idiomorph.js"))
         #expect(LiveAssets.javascript(named: "live-render.js")?.contains("export function applyRenderPatch") == true)
         #expect(LiveAssets.javascript(named: "idiomorph.js") != nil)
-        #expect(LiveAssets.javascript(named: "../LiveView.swift") == nil)
+        #expect(LiveAssets.javascript(named: "../Interactive.swift") == nil)
     }
 }

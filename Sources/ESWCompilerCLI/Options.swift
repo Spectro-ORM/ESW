@@ -3,7 +3,7 @@ import ESWCompilerLib
 
 struct Options {
     static let usage = """
-    Usage: ESWCompilerCLI <input.esw|input.heex> [--output <file.swift>] [--source-location] [--heex]
+    Usage: ESWCompilerCLI <input.esw|input.hesw> [--output <file.swift>] [--source-location] [--hesw]
            ESWCompilerCLI --batch --root <target-directory> --output <file.swift> <templates...>
 
     Pass --view-source <file.swift> for each source containing @ESWTemplate views.
@@ -31,7 +31,7 @@ struct Options {
                 else if argument == "--view-source" { viewSources.append(arguments[index]) }
                 else { root = arguments[index] }
             case "--source-location": sourceLocations = true
-            case "--heex": syntax = .heex
+            case "--hesw", "--heex": syntax = .hesw
             case "--batch": batch = true
             case "--help", "-h": help = true
             default:
@@ -47,7 +47,7 @@ struct Options {
             throw ESWTemplateError("error: supply one template, or use --batch for multiple templates\n" + Self.usage)
         }
         guard !batch || syntax == nil else {
-            throw ESWTemplateError("error: --batch selects syntax by file extension; --heex is for single-file compilation")
+            throw ESWTemplateError("error: --batch selects syntax by file extension; --hesw is for single-file compilation")
         }
     }
 

@@ -37,7 +37,7 @@ syntax region eswComponentTag start=+<\%(\.[[:alnum:]_-]\+\|[A-Z][[:alnum:]_]*\%
 syntax region eswNestedBrace matchgroup=eswDelimiter start=+{+ end=+}+ contained extend contains=@eswSwift,eswNestedBrace
 syntax region eswExpression matchgroup=eswDelimiter start=+{+ end=+}+ contained keepend contains=@eswSwift,eswNestedBrace
 
-if &filetype ==# 'eswheex'
+if &filetype ==# 'hesw'
   " Body expressions and unquoted HTML attributes. Quoted attributes, scripts,
   " styles, and HTML comments retain their host-language brace highlighting.
   syntax region eswExpression matchgroup=eswDelimiter start=+\\\@<!{+ end=+}+ keepend contains=@eswSwift,eswNestedBrace containedin=htmlTag,htmlValue,htmlBold,htmlItalic,htmlUnderline,htmlStrike,htmlLink,htmlHead,htmlTitle,htmlH1,htmlH2,htmlH3,htmlH4,htmlH5,htmlH6
@@ -58,4 +58,4 @@ highlight default link eswSwiftComment Comment
 highlight default link eswSwiftLineComment Comment
 
 syntax sync fromstart
-let b:current_syntax = &filetype ==# 'eswheex' ? 'eswheex' : 'esw'
+let b:current_syntax = &filetype ==# 'hesw' ? 'hesw' : 'esw'

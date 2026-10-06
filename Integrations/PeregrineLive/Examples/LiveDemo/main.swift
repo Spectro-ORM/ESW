@@ -7,7 +7,7 @@ struct DemoState: Sendable {
     var rows = ["first", "second", "third"]
 }
 
-struct DemoView: LiveView {
+struct DemoView: Interactive {
     func mount(_ context: LiveContext) async throws -> DemoState { DemoState() }
     func handleEvent(_ event: LiveEvent, state: DemoState) async throws -> DemoState {
         var state = state

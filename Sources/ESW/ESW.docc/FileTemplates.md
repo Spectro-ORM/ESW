@@ -28,7 +28,7 @@ Create `Views/GreetingView.swift` and associate it explicitly with its template:
 ```swift
 import ESW
 
-@ESWTemplate("greeting.heex")
+@ESWTemplate("greeting.hesw")
 struct GreetingView {
     let name: String
     var isMember = false
@@ -37,7 +37,7 @@ struct GreetingView {
 }
 ```
 
-And `Views/greeting.heex`:
+And `Views/greeting.hesw`:
 
 ```html
 <section>
@@ -59,8 +59,8 @@ The path is relative to the annotated Swift file. The view filename is your choi
 | Template path | Annotation | Return type |
 | --- | --- | --- |
 | `greeting.esw` | `@ESWTemplate("greeting.esw")` | `String` |
-| `greeting.heex` | `@ESWTemplate("greeting.heex")` | `String` |
-| `counter.live.heex` | `@ESWTemplate("counter.live.heex")` | `ESWLiveRender` |
+| `greeting.hesw` | `@ESWTemplate("greeting.hesw")` | `String` |
+| `counter.live.hesw` | `@ESWTemplate("counter.live.hesw")` | `ESWLiveRender` |
 
 Annotate an unconditional top-level struct. Generic structs, computed properties,
 defaults, and instance helpers are supported. Multiple annotated views can share a
@@ -80,7 +80,7 @@ inside the target so SwiftPM discovers and tracks them.
 ### Declare inputs in a template header
 
 For a free function, omit the annotation and put typed inputs at the beginning of
-`Views/greeting.heex`:
+`Views/greeting.hesw`:
 
 ```html
 <%!
@@ -111,16 +111,16 @@ are discovered by the build plugin and CLI, not by `#render`.
 | Logical path | Renderer without an associated view |
 | --- | --- |
 | `greeting.esw` | `renderGreeting(...)` |
-| `users/index.heex` | `renderUsersIndex(...)` |
+| `users/index.hesw` | `renderUsersIndex(...)` |
 | `posts/index.esw` | `renderPostsIndex(...)` |
-| `counter.live.heex` | `renderCounterLive(...)` |
-| `users/_card.heex` | `renderUsersCard(...)` and `_renderUsersCardBuffer(...)` |
+| `counter.live.hesw` | `renderCounterLive(...)` |
+| `users/_card.hesw` | `renderUsersCard(...)` and `_renderUsersCardBuffer(...)` |
 
 Paths are relative to `Views/`, or the target root for templates outside it.
 Hyphens and underscores separate words. A leading underscore marks a partial;
 its buffer-named alias still returns `String` for ordinary templates. Defaults
 are preserved on both generated functions. A batch rejects normalized collisions
-such as `user-card.heex` and `user_card.heex`.
+such as `user-card.hesw` and `user_card.hesw`.
 
 ### Compose a layout
 
@@ -138,22 +138,22 @@ var content: String
 </html>
 ```
 
-For that `layout.heex`, call `renderLayout(title: "People", content: pageHTML)`.
+For that `layout.hesw`, call `renderLayout(title: "People", content: pageHTML)`.
 Only mark trusted renderer output as HTML. User-provided text stays escaped.
 
 ### Use the compiler CLI
 
 ```sh
-swift run ESWCompilerCLI Sources/App/Views/greeting.heex \
+swift run ESWCompilerCLI Sources/App/Views/greeting.hesw \
   --view-source Sources/App/Views/GreetingView.swift \
   --output /tmp/Greeting.swift --source-location
 
 swift run ESWCompilerCLI --batch --root Sources/App \
   --output /tmp/ESWTemplates.swift \
-  Sources/App/Views/users/index.heex Sources/App/Views/posts/index.esw
+  Sources/App/Views/users/index.hesw Sources/App/Views/posts/index.esw
 ```
 
 For annotated views, pass their Swift files with `--view-source`; the build plugin
-does this for the target automatically. `--heex` selects HTML mode
+does this for the target automatically. `--hesw` selects HTML mode
 for single-file input with a different extension; batches infer syntax from each
 filename. Output files are written atomically after successful generation.

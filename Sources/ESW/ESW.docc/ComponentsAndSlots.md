@@ -15,11 +15,11 @@ import ESW
 
 struct Button: ESWComponent {
     static func render(label: String, disabled: Bool = false) -> String {
-        #heex("<button disabled={disabled}>{label}</button>")
+        #hesw("<button disabled={disabled}>{label}</button>")
     }
 }
 
-let html = #heex("<.button label=\"Save\" disabled />")
+let html = #hesw("<.button label=\"Save\" disabled />")
 ```
 
 Quoted component attributes are Swift strings. Braced attributes are Swift
@@ -38,7 +38,7 @@ attributes, directives, or binding becomes a `String` argument:
 ```swift
 struct Card: ESWComponent {
     static func render(title: String, footer: String = "", content: String = "") -> String {
-        #heex("""
+        #hesw("""
         <article>
           <h2>{title}</h2>
           <div>{ESWValue.safe(content)}</div>
@@ -48,7 +48,7 @@ struct Card: ESWComponent {
     }
 }
 
-let html = #heex("""
+let html = #hesw("""
 <.card title="Profile">
   <p>Member since 2026.</p>
   <:footer>Updated today.</:footer>
@@ -87,7 +87,7 @@ enum UI {
 
 let people = [Person(name: "Ada")]
 let showDetails = true
-let html = #heex("""
+let html = #hesw("""
 <UI.table people={people}>
   <:column label="Name" :let={person}><strong>{person.name}</strong></:column>
   <:column label="Details" :if={showDetails} :let={person}>{person.name}</:column>
@@ -131,7 +131,7 @@ struct Form: ESWComponent {
 }
 
 let name = "Ada"
-let html = #heex("""
+let html = #hesw("""
 <.form value={name} :let={form}>
   <input name={form.name} value={form.value} />
 </.form>
