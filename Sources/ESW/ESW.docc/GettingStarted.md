@@ -71,7 +71,7 @@ Add `.product(name: "ESWLive", package: "esw")` when you need the `LiveView`,
 `LiveSession`, and `LiveHost` APIs. That module re-exports `ESW`. A transport adapter
 is still responsible for HTTP routes, browser connections, sessions, and CSRF.
 
-The separate [Roost Playground](https://github.com/Maartz/roost-playground) supplies
+The separate [Roost Playground](https://github.com/roost-framework/roost-playground) supplies
 that application setup for a one-file experiment. It also uses the current local
 development dependencies. Start with <doc:LiveRendering> to understand what the
 core rendering layer produces.

@@ -86,7 +86,7 @@ objects, and the bundled client rejects file uploads.
 ### Connect it to an application
 
 For a one-file application, the separate
-[Roost Playground](https://github.com/Maartz/roost-playground) supplies the server
+[Roost Playground](https://github.com/roost-framework/roost-playground) supplies the server
 and browser shell using the renamed Roost framework. It requires the same local
 development dependencies as this runtime.
 

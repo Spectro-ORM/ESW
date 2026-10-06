@@ -84,7 +84,7 @@ An expired instance requires a page reload rather than a silent state reset.
 
 ### Existing applications
 
-[Roost Playground](https://github.com/Maartz/roost-playground) contains an adapter
+[Roost Playground](https://github.com/roost-framework/roost-playground) contains an adapter
 for the renamed Roost framework. The `Integrations/PeregrineLive` package in this
 repository still targets the earlier Peregrine module and needs a compatible
 checkout. These integrations use ESW's protocol; the Phoenix JavaScript client

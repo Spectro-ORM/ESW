@@ -108,7 +108,7 @@ Add ESW to your application's `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/Spectro-ORM/ESW.git", from: "1.5.0"),
+    .package(url: "https://github.com/roost-framework/ESW.git", from: "1.5.0"),
 ]
 ```
 

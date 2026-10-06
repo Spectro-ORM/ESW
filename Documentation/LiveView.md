@@ -4,7 +4,7 @@
 > `Peregrine` module. It needs a compatible framework checkout; the renamed
 > `Roost` product alone does not satisfy that dependency. For current library
 > APIs, start with the [ESWLive documentation](../Sources/ESWLive/ESWLive.docc/ESWLive.md).
-> [Roost Playground](https://github.com/Maartz/roost-playground) provides the separate
+> [Roost Playground](https://github.com/roost-framework/roost-playground) provides the separate
 > integration for the renamed framework. Validation results below are historical.
 
 ESW can now render a page from Swift state, handle browser events, and update the DOM without navigation. This is an initial implementation using SSE updates and POST events. It runs in one server process and uses its own protocol.

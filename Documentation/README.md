@@ -60,5 +60,5 @@ guide so declarations and documentation remain in sync.
 their historical research context and distinguish implementation from proposals.
 [LiveView.md](LiveView.md) describes the original Peregrine adapter and its
 validation. That adapter still targets the old framework name; use a compatible
-checkout, or the separate [Roost Playground](https://github.com/Maartz/roost-playground)
+checkout, or the separate [Roost Playground](https://github.com/roost-framework/roost-playground)
 integration with the renamed Roost product.
