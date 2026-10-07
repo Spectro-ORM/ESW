@@ -156,16 +156,25 @@ public struct ESWKeyedBuffer: Sendable {
         body(&buffer)
         let row = buffer.finalize()
         renders.append(row)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(key), let identity = String(data: data, encoding: .utf8),
-              entries[identity] == nil else {
+        guard let identity = Self.identity(key), entries[identity] == nil else {
             validKeys = false
             return
         }
         order.append(identity)
         entries[identity] = row
     }
+
+    /// The key's sorted-keys JSON encoding. `Int` keys skip the encoder; the result is identical.
+    private static func identity<Key: Encodable>(_ key: Key) -> String? {
+        if let int = key as? Int { return String(int) }
+        return (try? encoder.encode(key)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    private static let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }()
 
     fileprivate var render: ESWKeyedRender? {
         validKeys ? ESWKeyedRender(order: order, entries: entries) : nil

@@ -27,6 +27,16 @@ func table(_ rows: [Row]) -> String {
     """)
 }
 
+func liveTable(_ rows: [Row]) -> ESWLiveRender {
+    #live("""
+    <table>
+      <tr :for={row in rows} :key={row.id}>
+        <td>{row.id}</td><td title={row.email}>{row.name}</td><td>{row.note}</td>
+      </tr>
+    </table>
+    """)
+}
+
 // Lower bound: the same markup without escaping or template machinery.
 func unescaped(_ rows: [Row]) -> String {
     var html = "<table>"
@@ -36,13 +46,13 @@ func unescaped(_ rows: [Row]) -> String {
     return html + "</table>"
 }
 
-func measure(_ name: String, iterations: Int = 300, _ body: () -> String) {
+func measure(_ name: String, iterations: Int = 300, _ body: () -> Int) {
     var bytes = 0
-    for _ in 0..<20 { bytes &+= body().utf8.count }
+    for _ in 0..<20 { bytes &+= body() }
     var samples: [Duration] = []
     for _ in 0..<iterations {
         let start = ContinuousClock.now
-        bytes &+= body().utf8.count
+        bytes &+= body()
         samples.append(ContinuousClock.now - start)
     }
     samples.sort()
@@ -50,8 +60,15 @@ func measure(_ name: String, iterations: Int = 300, _ body: () -> String) {
         let (seconds, attoseconds) = duration.components
         return "\(Int((Double(seconds) * 1e6 + Double(attoseconds) / 1e12).rounded())) µs"
     }
-    print("\(name): median \(microseconds(samples[iterations / 2])), min \(microseconds(samples[0]))  [\(bytes / (iterations + 20)) bytes]")
+    print("\(name): median \(microseconds(samples[iterations / 2])), min \(microseconds(samples[0]))  [\(bytes / (iterations + 20))]")
 }
 
-measure("HESW table, 1,000 rows") { table(rows) }
-measure("Unescaped interpolation") { unescaped(rows) }
+measure("HESW table, 1,000 rows") { table(rows).utf8.count }
+measure("Unescaped interpolation") { unescaped(rows).utf8.count }
+
+// One live event: render the next state and diff it against the current one.
+var edited = rows
+edited[500] = Row(id: 500, name: "Changed", email: "changed@example.com", note: nil)
+let current = liveTable(rows)
+measure("Live table, 1,000 keyed rows") { liveTable(rows).dynamics.count }
+measure("Live render + diff, one row changed") { current.diff(to: liveTable(edited)).keyed?.count ?? 0 }
