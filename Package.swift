@@ -77,6 +77,13 @@ let package = Package(
             name: "ESWCompilerLibTests",
             dependencies: ["ESWCompilerLib"]
         ),
+
+        // Rendering benchmark: swift run -c release ESWBenchmarks
+        .executableTarget(
+            name: "ESWBenchmarks",
+            dependencies: ["ESW"],
+            path: "Benchmarks/ESWBenchmarks"
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

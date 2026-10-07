@@ -1,7 +1,7 @@
 /// Accumulates HTML for a string-returning compiled template.
 ///
 /// Generated code appends literal markup with ``append(_:)`` and dynamic text
-/// with ``appendEscaped(_:)``. Applications normally call a generated renderer.
+/// with `appendEscaped(_:)`. Applications normally call a generated renderer.
 public struct ESWBuffer: Sendable {
     private var content: String = ""
 
@@ -16,6 +16,21 @@ public struct ESWBuffer: Sendable {
     /// Appends a value using the HTML-body rules of ``ESW/escape(_:)``.
     public mutating func appendEscaped<T>(_ value: T) {
         content += ESW.escape(value)
+    }
+
+    /// Escapes text directly into the buffer. Same output as the generic overload.
+    public mutating func appendEscaped(_ value: String) {
+        ESW.appendEscaped(value, to: &content)
+    }
+
+    /// Escapes optional text directly into the buffer; `nil` appends nothing.
+    public mutating func appendEscaped(_ value: String?) {
+        if let value { ESW.appendEscaped(value, to: &content) }
+    }
+
+    /// Appends an integer, which never needs escaping.
+    public mutating func appendEscaped(_ value: Int) {
+        content += String(value)
     }
 
     /// Appends raw HTML; the caller owns its escaping and trust decision.

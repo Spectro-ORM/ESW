@@ -21,12 +21,18 @@ extension ESW {
         } else {
             text = attributeText(value)
         }
-        return " \(name)=\"\(escape(text))\""
+        return " \(name)=\"\(escaped(text))\""
+    }
+
+    /// The text case of the general attribute renderer, without boxing the value. Same output.
+    public static func attribute(_ name: String, _ value: String) -> String {
+        guard validAttributeName(name) else { return "" }
+        return " \(name)=\"\(escaped(value))\""
     }
 
     /// Attribute maps render in a stable order. Invalid names are omitted.
     ///
-    /// Keys are sorted before applying ``attribute(_:_:)`` to each value.
+    /// Keys are sorted before applying ``attribute(_:_:)-(String,Any?)`` to each value.
     public static func attributes(_ values: [String: Any?]) -> String {
         values.keys.sorted().map { attribute($0, values[$0] ?? nil) }.joined()
     }

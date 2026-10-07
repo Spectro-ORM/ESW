@@ -27,7 +27,13 @@ def main():
     parser.add_argument("--roost", "--peregrine", dest="roost", type=Path)
     options = parser.parse_args()
     run(["swift", "build", "--product", "ESWCompilerCLI"])
+    run(["swift", "build", "--target", "ESW"])  # Probes import ESW and load ESWMacros.
     binary_dir = Path(run(["swift", "build", "--show-bin-path"]).strip())
+    # The native build system keeps .swiftmodule files in Modules/.
+    includes = [arg for path in (binary_dir, binary_dir / "Modules") if path.exists() for arg in ("-I", path)]
+    # The native build system names the macro executable ESWMacros-tool.
+    macros = next(path for path in (binary_dir / "ESWMacros", binary_dir / "ESWMacros-tool") if path.exists())
+    plugin = ["-load-plugin-executable", f"{macros}#ESWMacros"]
     compiler = binary_dir / "ESWCompilerCLI"
 
     with tempfile.TemporaryDirectory(prefix="esw-integration-") as temporary:
@@ -63,10 +69,7 @@ struct ProbeTable: ESWComponent {
         for index, (template, expected) in enumerate(invalid_templates):
             source = probe / f"invalid-slot-{index}.swift"
             source.write_text(prefix + 'let html = #hesw(#"' + template + '"#)\n')
-            diagnostic = run([
-                "swiftc", "-typecheck", "-I", binary_dir, "-load-plugin-executable",
-                str(binary_dir / "ESWMacros") + "#ESWMacros", source,
-            ], succeeds=False)
+            diagnostic = run(["swiftc", "-typecheck", *includes, *plugin, source], succeeds=False)
             assert expected in diagnostic, diagnostic
         print("Swift rejects wrong slot attributes, wrong row members, escaped binding scopes, and missing required slots.", flush=True)
 
@@ -76,21 +79,21 @@ struct ProbeTable: ESWComponent {
         companion.write_text('import ESW\n@ESWTemplate("typed.esw")\nstruct TypedView { let email: String }\n')
         typed_template.write_text('<p><%= emali %></p>\n')
         run([compiler, typed_template, "--view-source", companion, "--source-location", "--output", typed_output])
-        diagnostic = run(["swiftc", "-typecheck", "-I", binary_dir, "-load-plugin-executable", str(binary_dir / "ESWMacros") + "#ESWMacros", companion, typed_output], succeeds=False)
+        diagnostic = run(["swiftc", "-typecheck", *includes, *plugin, companion, typed_output], succeeds=False)
         assert "cannot find 'emali' in scope" in diagnostic, diagnostic
         assert str(typed_template) + ":1:" in diagnostic, diagnostic
         typed_template.write_text('<p><%= email %></p>\n')
         run([compiler, typed_template, "--view-source", companion, "--output", typed_output])
         caller = probe / "main.swift"
         caller.write_text("let html = TypedView(email: 42).render()\n")
-        diagnostic = run(["swiftc", "-typecheck", "-I", binary_dir, "-load-plugin-executable", str(binary_dir / "ESWMacros") + "#ESWMacros", companion, typed_output, caller], succeeds=False)
+        diagnostic = run(["swiftc", "-typecheck", *includes, *plugin, companion, typed_output, caller], succeeds=False)
         assert "expected argument type 'String'" in diagnostic, diagnostic
         companion.write_text('import ESW\n@ESWTemplate("typed.esw")\npublic struct TypedView { let email = "public"; public init() {} }\n')
         run([compiler, typed_template, "--view-source", companion, "--output", typed_output])
-        run(["swiftc", "-emit-module", "-module-name", "ViewProbe", "-I", binary_dir, "-load-plugin-executable", str(binary_dir / "ESWMacros") + "#ESWMacros",
+        run(["swiftc", "-emit-module", "-module-name", "ViewProbe", *includes, *plugin,
              companion, typed_output, "-o", probe / "ViewProbe.swiftmodule"])
         caller.write_text("import ViewProbe\nlet html = TypedView().render()\n")
-        run(["swiftc", "-typecheck", "-I", binary_dir, "-I", probe, caller])
+        run(["swiftc", "-typecheck", *includes, "-I", probe, caller])
         print("Typed views preserve Swift input checking, template diagnostics, and public access across modules.", flush=True)
 
         previous_output = typed_output.read_bytes()
@@ -104,8 +107,7 @@ struct ProbeTable: ESWComponent {
                           "--output", typed_output], succeeds=False)
         assert "missing or is not a template input" in diagnostic, diagnostic
         assert typed_output.read_bytes() == previous_output
-        diagnostic = run(["swiftc", "-typecheck", "-I", binary_dir, "-load-plugin-executable",
-                          str(binary_dir / "ESWMacros") + "#ESWMacros", companion], succeeds=False)
+        diagnostic = run(["swiftc", "-typecheck", *includes, *plugin, companion], succeeds=False)
         assert "does not conform to protocol 'ESWView'" in diagnostic, diagnostic
         print("Missing templates, duplicate associations, and missing build output fail without replacing generated files.", flush=True)
 
