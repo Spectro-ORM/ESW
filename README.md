@@ -136,13 +136,7 @@ In a Peregrine route, use `conn.html(renderUsersIndex(users: users))`. The rende
 
 ### Option B: Macros
 
-Add the `ESW` product to your target for inline `#esw` and `#hesw` templates. They capture Swift values from the surrounding scope. The `#render` file macro is also available, but its file read does not itself establish a SwiftPM template dependency; prefer the plugin for file templates that must rebuild reliably.
-
-File macros require compile-time file access:
-
-```bash
-swift build --disable-sandbox
-```
+Add the `ESW` product to your target for inline `#esw` and `#hesw` templates. They capture Swift values from the surrounding scope and need no build plugin. The `#render` file macro is deprecated: use Option A's generated renderers or a [typed view](#typed-views-no-template-header) for file templates.
 
 ### Your First Template
 
@@ -155,33 +149,28 @@ var name: String
 <h1>Hello, <%= name %>!</h1>
 ```
 
-**Use with macros (framework-agnostic):**
-
-```swift
-import ESW
-
-func greet(name: String) -> String {
-    return #render("greeting.esw")
-}
-```
-
-Wrap the result with whatever your framework provides:
+The build plugin generates `renderGreeting(name:)`, which returns `String`. Wrap the result with whatever your framework provides:
 
 ```swift
 // Nexus
-conn.html(#render("greeting.esw"))
+conn.html(renderGreeting(name: "World"))
 
 // Hummingbird
-Response(status: .ok, body: .init(byteBuffer: ByteBuffer(string: #render("greeting.esw"))))
+Response(status: .ok, body: .init(byteBuffer: ByteBuffer(string: renderGreeting(name: "World"))))
 
 // Vapor
-Response(body: .init(string: #render("greeting.esw")))
+Response(body: .init(string: renderGreeting(name: "World")))
 ```
 
-**Or with the build plugin:**
+**Or as a typed view:** remove the `<%! ... %>` header from `greeting.esw` and declare the input on a Swift struct next to it. See [Typed Views](#typed-views-no-template-header).
 
 ```swift
-return conn.html(renderGreeting(name: "World"))
+@ESWTemplate("greeting.esw")
+struct Greeting {
+    let name: String
+}
+
+let html = Greeting(name: "World").render()
 ```
 
 ---
@@ -266,7 +255,7 @@ HTML mode reports unclosed or mismatched tags, duplicate attributes, and malform
 
 `.esw` files retain their text-template behavior: literal braces and HTML fragments are allowed. HESW is a Swift template syntax inspired by Phoenix HEEx; it does not include live state, diffing, or events.
 
-**Note:** `.heex` files, `#heex`, `--heex`, `TemplateSyntax.heex`, and `LiveView` still work as deprecated aliases and will be removed in ESW 2.0.
+**Note:** `.heex` files, `#heex`, `--heex`, `TemplateSyntax.heex`, and `LiveView` still work as deprecated aliases and will be removed in ESW 2.0. The `#render` file macro is also deprecated and will be removed in 2.0; see [Macros](#macros).
 
 ### Typed Views (No Template Header)
 
@@ -539,28 +528,18 @@ ESW provides expression macros for string and live rendering, plus an attached
 `@ESWTemplate` macro for typed file views. The examples below cover string macros;
 see the library guides for the complete reference.
 
-### `#render` — File Templates
+### `#render` — File Templates (Deprecated)
 
-Reads a `.esw` or `.hesw` file at compile time and expands to a `String`-returning closure. The extension selects the syntax:
+Deprecated in ESW 1.7 and removed in 2.0. `#render` reads a `.esw` or `.hesw` file at compile time and captures template variables from the surrounding scope. It needs `swift build --disable-sandbox`, and its file read is not a SwiftPM build input, so editing the template does not rebuild the caller. Use the build plugin's generated renderer or a [typed view](#typed-views-no-template-header) instead:
 
 ```swift
 let users = try await db.query(User.self).all()
+
+// Before
 let html = #render("users.esw")
-```
 
-Template variables are captured from the surrounding scope. Front-matter defaults apply to generated functions; macros require the referenced variables in scope, including those with defaults.
-
-Wrap with your framework:
-
-```swift
-// Nexus
-conn.html(#render("users.esw"))
-
-// Hummingbird
-Response(status: .ok, body: .init(byteBuffer: ByteBuffer(string: #render("users.esw"))))
-
-// Vapor
-Response(body: .init(string: #render("users.esw")))
+// After: users.esw declares <%! var users: [User] %>
+let html = renderUsers(users: users)
 ```
 
 **File resolution:** Searches `Views/<name>` and `<name>` up to 6 directory levels up.
@@ -588,20 +567,20 @@ Inline macros decode normal and raw Swift string literals. Use template expressi
 
 ### Framework Integration
 
-The macro returns `String` — wrap it with whatever your framework provides:
+Inline macros return `String` — wrap the result with whatever your framework provides:
 
 ```swift
 // Nexus
-conn.html(#render("page.esw"))
+conn.html(html)
 
 // Hummingbird
-Response(status: .ok, body: .init(byteBuffer: ByteBuffer(string: #render("page.esw"))))
+Response(status: .ok, body: .init(byteBuffer: ByteBuffer(string: html)))
 
 // Vapor
-Response(body: .init(string: #render("page.esw")))
+Response(body: .init(string: html))
 ```
 
-**Note:** File templates via `#render` require `--disable-sandbox` for compile-time file reads. `#esw` and `#hesw` do not read template files.
+**Note:** `#esw` and `#hesw` do not read template files and need no extra build flags. Only the deprecated `#render` requires `--disable-sandbox`.
 
 ---
 
@@ -675,9 +654,8 @@ var content: String
 ### Composition
 
 ```swift
-let content = #render("user_profile.esw")
-let title = "User profile"
-let page = #render("layout.esw")
+let content = renderUserProfile(user: user, posts: posts)
+let page = renderLayout(title: "User profile", content: content)
 
 // Wrap with your framework (Nexus example)
 conn.html(page)

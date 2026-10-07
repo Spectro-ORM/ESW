@@ -21,9 +21,10 @@ For file templates, an `@ESWTemplate` view keeps its properties in ordinary Swif
 ### Editing a template does not rebuild it
 
 Use `ESWBuildPlugin` for file templates. It declares templates and Swift view files as
-SwiftPM inputs. The `#render` macro reads files during expansion but does not
-independently tell SwiftPM to rebuild when only that file changes. Also ensure the
-target has not excluded its `Views/` directory.
+SwiftPM inputs. The deprecated `#render` macro reads files during expansion but does
+not tell SwiftPM to rebuild when only that file changes; replace it with a generated
+renderer or an `@ESWTemplate` view. Also ensure the target has not excluded its
+`Views/` directory.
 
 ### The compiler cannot see a type or property
 
@@ -57,8 +58,9 @@ cannot both generate the same struct's `render()` method.
 
 Relative lookup starts at the calling Swift file, checking `Views/<path>` and
 `<path>` for up to six directory levels. Absolute paths are accepted. File reads
-may need `--disable-sandbox`; inline macros do not. Prefer the build plugin when
-integrating an application so its filesystem inputs are explicit.
+may need `--disable-sandbox`; inline macros do not. `#render` is deprecated: replace
+it with the build plugin's generated renderer or an `@ESWTemplate` view, which make
+filesystem inputs explicit.
 
 ### A signed resource bundle fails in a synced folder
 
@@ -80,3 +82,7 @@ ESW renamed the HTML-aware syntax to HESW and the live view protocol to
 `Interactive`. `.heex` files, `#heex`, `--heex`, `TemplateSyntax.heex`, and
 `LiveView` still work as deprecated aliases and will be removed in ESW 2.0.
 Rename `.heex` and `.live.heex` files to `.hesw` and `.live.hesw`.
+
+The `#render` file macro is also deprecated and will be removed in ESW 2.0. Call the
+build plugin's generated renderer, such as `renderUsers(users:)`, or an
+`@ESWTemplate` view's `render()` instead.

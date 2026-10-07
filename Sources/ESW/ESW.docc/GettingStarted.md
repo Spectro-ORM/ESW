@@ -58,12 +58,12 @@ Swift string interpolation; place expressions in `{...}` or `<%= ... %>` instead
 | `#live("...")` | `ESWLiveRender` | Structured HTML output for live updates. |
 | `ESWBuildPlugin` + `.esw` / `.hesw` | Generated `String` renderer | File templates tracked as build inputs. |
 | `ESWBuildPlugin` + `.live.hesw` | Generated `ESWLiveRender` renderer | Live file templates. |
-| `#render("page.hesw")` | `String` | Compile-time file expansion capturing local variables. |
+| `#render("page.hesw")` | `String` | Deprecated; use `@ESWTemplate` or a generated renderer. |
 
-Use the build plugin for file templates that need reliable incremental rebuilds.
-The file macro's read does not declare a SwiftPM dependency on that template.
-It also needs compile-time filesystem access, which may require
-`swift build --disable-sandbox`. Inline macros do not read template files.
+Use the build plugin for file templates. The deprecated `#render` file macro does
+not declare a SwiftPM dependency on its template and may require
+`swift build --disable-sandbox`; it will be removed in ESW 2.0. Inline macros do
+not read template files.
 
 ### Add live behavior
 

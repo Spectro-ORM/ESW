@@ -27,7 +27,7 @@ let child = #hesw("<strong>{name}</strong>")
 let page = #hesw("<main>{render(child)}</main>")
 ```
 
-The function returns ``ESWValue/safe(_:)``. It differs from the `#render(...)` macro,
+The function returns ``ESWValue/safe(_:)``. It differs from the deprecated `#render(...)` macro,
 which reads a template file. `<%== html %>` is another explicit raw-output escape
 hatch. Neither operation sanitizes its input.
 

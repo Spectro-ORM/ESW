@@ -72,8 +72,9 @@ The build plugin recognizes the full `.live.hesw` suffix. Without an associated 
 view annotated `@ESWTemplate("counter.live.hesw")`, its `render()` method returns the same
 type. See <doc:FileTemplates>.
 
-Ordinary `.hesw` and `.esw` renderers return strings. `#render("counter.live.hesw")`
-also returns `String`; use the build plugin or `#live` for structured output.
+Ordinary `.hesw` and `.esw` renderers return strings. The deprecated
+`#render("counter.live.hesw")` also returns `String`; use the build plugin or `#live`
+for structured output.
 
 ### State and transport
 
