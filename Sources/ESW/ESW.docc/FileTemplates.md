@@ -104,7 +104,7 @@ imports adds `import Nexus`; new templates should specify their imports.
 
 Expression macro expansion has a different contract: it captures variables in scope and
 does not introduce header parameters or their defaults. Typed-view associations
-are discovered by the build plugin and CLI, not by `#render`.
+are discovered by the build plugin and CLI, not by the deprecated `#render`.
 
 ### Generated names
 

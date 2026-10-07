@@ -14,6 +14,20 @@ private enum KeyedUI {
 
 @Suite("Live render snapshots")
 struct LiveRenderTests {
+    @Test func keyIdentitiesMatchSortedKeysJSON() throws {
+        func json<Key: Encodable>(_ key: Key) throws -> String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            return String(decoding: try encoder.encode(key), as: UTF8.self)
+        }
+        let numbers = [-7, 0, 42]
+        let ints = #live("<i :for={n in numbers} :key={n}>{n}</i>")
+        #expect(ints.keyed["0"]?.order == (try numbers.map(json)))
+        let slugs = ["a/b", "quote\"", "é"]
+        let strings = #live("<i :for={s in slugs} :key={s}>{s}</i>")
+        #expect(strings.keyed["0"]?.order == (try slugs.map(json)))
+    }
+
     @Test func keyedInsertionAndReorderingDoNotResendUnchangedRows() throws {
         func page(_ items: [Int]) -> ESWLiveRender {
             #live("<ul><li :for={item in items} :key={item}>{item}</li></ul>")

@@ -36,6 +36,10 @@ public macro ESWTemplate(_ path: String) =
 ///
 /// - Parameter templatePath: A literal relative or absolute template path.
 /// - Returns: Complete HTML. Even a `.live.hesw` file returns `String` through this macro.
+///
+/// Deprecated in ESW 1.7 and removed in 2.0. Use ``ESWTemplate(_:)`` or the build
+/// plugin's generated renderer, which track template edits without disabling the sandbox.
+@available(*, deprecated, message: "Use @ESWTemplate or the build plugin's generated renderer. #render needs --disable-sandbox and does not rebuild when the template changes.")
 @freestanding(expression)
 public macro render(_ templatePath: String) -> String =
     #externalMacro(module: "ESWMacros", type: "RenderMacro")

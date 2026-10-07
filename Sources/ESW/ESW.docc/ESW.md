@@ -30,12 +30,11 @@ to a server adapter such as the Roost playground.
 - <doc:LiveRendering>
 - <doc:Troubleshooting>
 
-### Inline and file macros
+### Inline macros
 
 - ``esw(_:)``
 - ``hesw(_:)``
 - ``live(_:)``
-- ``render(_:)-macro``
 
 ### Typed template views
 
@@ -59,3 +58,7 @@ to a server adapter such as the Roost playground.
 - ``ESWLiveRender``
 - ``ESWLivePatch``
 - ``ESWLiveBuffer``
+
+### Deprecated
+
+- ``render(_:)-macro``
