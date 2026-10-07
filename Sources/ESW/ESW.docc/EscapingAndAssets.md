@@ -36,7 +36,7 @@ not necessary for ordinary strings, which already receive default escaping.
 
 ### Attribute boundaries
 
-``ESW/attribute(_:_:)`` escapes both safe and unsafe strings for a quoted attribute.
+``ESW/attribute(_:_:)-(String,Any?)`` escapes both safe and unsafe strings for a quoted attribute.
 Trust for an HTML body never bypasses attribute escaping. Dynamic HESW (HTML-aware ESW) attributes
 and spreads use these helpers automatically.
 

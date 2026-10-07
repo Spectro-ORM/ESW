@@ -185,6 +185,12 @@ public struct ESWLiveBuffer: Sendable {
     public mutating func append(_ text: String) { statics[statics.count - 1] += text }
     /// Escapes a value for HTML body output and appends it as a dynamic slot.
     public mutating func appendEscaped<T>(_ value: T) { appendUnsafe(ESW.escape(value)) }
+    /// Escapes text without boxing it. Same output as the generic overload.
+    public mutating func appendEscaped(_ value: String) { appendUnsafe(ESW.escaped(value)) }
+    /// Escapes optional text without boxing it; `nil` produces an empty slot.
+    public mutating func appendEscaped(_ value: String?) { appendUnsafe(value.map(ESW.escaped) ?? "") }
+    /// Appends an integer slot, which never needs escaping.
+    public mutating func appendEscaped(_ value: Int) { appendUnsafe(String(value)) }
     /// Appends a raw dynamic slot; the caller owns its escaping and trust decision.
     public mutating func appendUnsafe(_ html: String) {
         dynamics.append(html)

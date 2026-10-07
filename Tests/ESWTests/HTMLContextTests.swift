@@ -10,6 +10,27 @@ private enum UI {
 
 @Suite("HTML interpolation contexts")
 struct HTMLContextTests {
+    @Test func typedFastPathsMatchGenericEscaping() {
+        for text in ["plain", "", "\"\u{301}<A & 'b'>"] {
+            var typed = ESWBuffer(), generic = ESWBuffer()
+            typed.appendEscaped(text)
+            generic.appendEscaped(text as Any)
+            #expect(typed.finalize() == generic.finalize())
+            #expect(ESW.attribute("title", text) == ESW.attribute("title", text as Any?))
+            var live = ESWLiveBuffer(), genericLive = ESWLiveBuffer()
+            live.appendEscaped(text)
+            genericLive.appendEscaped(text as Any)
+            #expect(live.finalize() == genericLive.finalize())
+        }
+        var typed = ESWBuffer(), generic = ESWBuffer()
+        typed.appendEscaped(nil as String?)
+        typed.appendEscaped(-42)
+        generic.appendEscaped(nil as String? as Any)
+        generic.appendEscaped(-42 as Any)
+        #expect(typed.finalize() == generic.finalize())
+        #expect(ESW.attribute("bad name", "x") == "")
+    }
+
     @Test func rawTextAndCommentsEvaluateEEx() {
         let value = 42
         let note = "<note>"
