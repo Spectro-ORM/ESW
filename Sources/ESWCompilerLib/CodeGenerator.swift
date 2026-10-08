@@ -221,7 +221,7 @@ public struct CodeGenerator {
         let name = attribute.key.replacingHyphens()
         switch attribute.value {
         case .none: return "\(name): true"
-        case .string(let value): return "\(name): \(rawStringLiteral(value))"
+        case .string(let value): return "\(name): \(Self.rawStringLiteral(value))"
         case .expression(let value): return "\(name): \(value)"
         }
     }
@@ -237,10 +237,10 @@ public struct CodeGenerator {
                     if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
                 }
                 if s.contains("\n") {
-                    let h = rawStringHashes(s)
+                    let h = Self.rawStringHashes(s)
                     lines.append("    \(bufferName).append(\(h)\"\"\"\n\(s)\n\"\"\"\(h))")
                 } else {
-                    lines.append("    \(bufferName).append(\(rawStringLiteral(s)))")
+                    lines.append("    \(bufferName).append(\(Self.rawStringLiteral(s)))")
                 }
             }
         case .output(let expr, let meta):
@@ -251,7 +251,7 @@ public struct CodeGenerator {
             lines.append("    \(bufferName).appendUnsafe(\(expr))")
         case .htmlAttribute(let name, let expression, let meta):
             if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
-            lines.append("    \(bufferName).appendUnsafe(ESW.attribute(\(rawStringLiteral(name)), \(expression)))")
+            lines.append("    \(bufferName).appendUnsafe(ESW.attribute(\(Self.rawStringLiteral(name)), \(expression)))")
         case .htmlAttributes(let expression, let meta):
             if emitSourceLocation(lines: &lines, meta) { emittedLocation = true }
             lines.append("    \(bufferName).appendUnsafe(ESW.attributes(\(expression)))")
@@ -381,7 +381,7 @@ public struct CodeGenerator {
         return name
     }
 
-    private func rawStringHashes(_ s: String) -> String {
+    static func rawStringHashes(_ s: String) -> String {
         var hashes = 1
         while s.contains("\"" + String(repeating: "#", count: hashes)) ||
               s.contains(String(repeating: "#", count: hashes) + "\"") ||
@@ -394,7 +394,7 @@ public struct CodeGenerator {
         return String(repeating: "#", count: hashes)
     }
 
-    private func rawStringLiteral(_ s: String) -> String {
+    static func rawStringLiteral(_ s: String) -> String {
         let h = rawStringHashes(s)
         if s.contains("\n") { return "\(h)\"\"\"\n\(s)\n\"\"\"\(h)" }
         return "\(h)\"\(s)\"\(h)"

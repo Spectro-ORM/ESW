@@ -19,6 +19,17 @@ public enum Naming {
         "_" + functionName(from: filename) + "Buffer"
     }
 
+    /// The `data-esw` value for a template with `<style :scoped>`: its file stem
+    /// plus a hash of the logical path, stable across machines and builds.
+    public static func scopeID(for filename: String) -> String {
+        let file = filename.split(separator: "/").last ?? Substring(filename)
+        let stem = file.split(separator: ".", maxSplits: 1).first ?? file
+        let slug = String(stem.lowercased().map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
+        var hash: UInt32 = 2_166_136_261 // FNV-1a
+        for byte in filename.utf8 { hash = (hash ^ UInt32(byte)) &* 16_777_619 }
+        return slug + "-" + String(hash, radix: 16)
+    }
+
     /// Reports whether the final path component begins with an underscore.
     public static func isPartial(_ filename: String) -> Bool {
         filename.split(separator: "/").last?.hasPrefix("_") == true

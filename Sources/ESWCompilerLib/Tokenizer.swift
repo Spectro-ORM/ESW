@@ -9,10 +9,17 @@ public struct Tokenizer {
     let syntax: TemplateSyntax
     var htmlElements: [HTMLElement] = []
     var htmlCommentMetadata: Metadata?
+    /// The `data-esw` value for top-level elements when the template has `<style :scoped>`.
+    let scope: String?
+    /// CSS collected from `<style :scoped>` blocks, in source order.
+    public internal(set) var scopedStyles: [String] = []
+    var rootTagCloses: [Int] = []
+    var pendingRootClose: Int?
 
     /// Creates a scanner, normalizing CRLF and CR line endings to LF.
     /// `file` is used for diagnostics; this initializer does not read a file.
-    public init(source: String, file: String = "<anonymous>", syntax: TemplateSyntax = .esw) {
+    /// `scope` enables `<style :scoped>` in HTML-aware templates; inline templates pass nil.
+    public init(source: String, file: String = "<anonymous>", syntax: TemplateSyntax = .esw, scope: String? = nil) {
         // Normalize line endings: \r\n → \n, bare \r → \n.
         // Swift treats \r\n as a single Character (grapheme cluster), so we
         // must work at the unicode scalar level.
@@ -37,6 +44,7 @@ public struct Tokenizer {
         self.file = file
         self.index = normalized.startIndex
         self.syntax = syntax
+        self.scope = scope
     }
 
     /// Consumes the remaining input and returns its located tokens.
@@ -54,6 +62,10 @@ public struct Tokenizer {
                     textBuffer = ""
                 }
                 tokens.append(contentsOf: htmlTokens)
+                if let offset = pendingRootClose {
+                    rootTagCloses.append(tokens.count - htmlTokens.count + offset)
+                    pendingRootClose = nil
+                }
                 continue
             }
             // Check for `<%%` (escape open → literal `<%`)
@@ -274,6 +286,15 @@ public struct Tokenizer {
         }
         if let element = htmlElements.last {
             throw ESWHTMLDiagnostic(metadata: element.metadata, message: "unclosed tag <\(element.name)>")
+        }
+        if let scope, !scopedStyles.isEmpty {
+            guard !rootTagCloses.isEmpty else {
+                throw htmlDiagnostic("<style :scoped> needs a top-level HTML element to scope", at: Metadata(file: file, line: 1, column: 1))
+            }
+            for index in rootTagCloses {
+                guard case .text(let close, let metadata) = tokens[index] else { continue }
+                tokens[index] = .text(" data-esw=\"\(scope)\"" + close, metadata: metadata)
+            }
         }
         return tokens
     }

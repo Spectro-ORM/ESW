@@ -122,6 +122,9 @@ its buffer-named alias still returns `String` for ordinary templates. Defaults
 are preserved on both generated functions. A batch rejects normalized collisions
 such as `user-card.hesw` and `user_card.hesw`.
 
+Each batch also generates `ESWStyles.css`, the target's CSS from `<style :scoped>`
+blocks. It is an empty string when no template uses scoped styles.
+
 ### Compose a layout
 
 Render a page first, then pass the resulting HTML to another renderer:

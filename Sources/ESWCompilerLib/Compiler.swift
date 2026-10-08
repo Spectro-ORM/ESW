@@ -22,8 +22,21 @@ public func compile(
     syntax: TemplateSyntax? = nil,
     view: TemplateView? = nil
 ) throws -> String {
-    try generator(source: source, filename: filename, sourceFile: sourceFile,
-                  emitSourceLocations: emitSourceLocations, syntax: syntax, view: view).generate()
+    let (swift, styles) = try compileWithStyles(source: source, filename: filename, sourceFile: sourceFile,
+                                                emitSourceLocations: emitSourceLocations, syntax: syntax, view: view)
+    guard styles.isEmpty else {
+        throw ESWTemplateError("\(sourceFile):1:1: error: <style :scoped> needs batch compilation; use ESWBuildPlugin or compileTemplates(_:emitSourceLocations:)")
+    }
+    return swift
+}
+
+/// Generates a renderer and returns the CSS of its `<style :scoped>` blocks.
+func compileWithStyles(source: String, filename: String, sourceFile: String, emitSourceLocations: Bool,
+                       syntax: TemplateSyntax? = nil, view: TemplateView? = nil) throws -> (swift: String, styles: [String]) {
+    let (generator, styles) = try generator(source: source, filename: filename, sourceFile: sourceFile,
+                                            emitSourceLocations: emitSourceLocations, syntax: syntax, view: view,
+                                            scope: Naming.scopeID(for: filename))
+    return (try generator.generate(), styles)
 }
 
 /// Generates an immediately invoked Swift closure expression for macro expansion.
@@ -39,13 +52,14 @@ public func compile(
 /// - Throws: A template diagnostic. Swift type checking happens when the expression compiles.
 public func compileExpression(source: String, sourceFile: String = "<inline>", syntax: TemplateSyntax = .esw, live: Bool = false) throws -> String {
     try generator(source: source, filename: sourceFile, sourceFile: sourceFile,
-                  emitSourceLocations: false, syntax: syntax).generateExpression(live: live)
+                  emitSourceLocations: false, syntax: syntax, scope: nil).generator.generateExpression(live: live)
 }
 
-private func generator(source: String, filename: String, sourceFile: String,
-                       emitSourceLocations: Bool, syntax: TemplateSyntax?, view: TemplateView? = nil) throws -> CodeGenerator {
+private func generator(source: String, filename: String, sourceFile: String, emitSourceLocations: Bool,
+                       syntax: TemplateSyntax?, view: TemplateView? = nil,
+                       scope: String?) throws -> (generator: CodeGenerator, styles: [String]) {
     let syntax = syntax ?? TemplateSyntax(path: filename)
-    var tokenizer = Tokenizer(source: source, file: sourceFile, syntax: syntax)
+    var tokenizer = Tokenizer(source: source, file: sourceFile, syntax: syntax, scope: scope)
     let rawTokens = coalescedText(try tokenizer.tokenize())
     let trimmedTokens = WhitespaceTrimmer.trim(rawTokens)
     let declarations = try AssignsParser.declarations(tokens: trimmedTokens, file: sourceFile)
@@ -68,7 +82,7 @@ private func generator(source: String, filename: String, sourceFile: String,
         imports: declarations.imports + (view?.imports ?? []),
         view: view
     )
-    return generator
+    return (generator, tokenizer.scopedStyles)
 }
 
 /// HTML lexing splits tags into pieces for validation. Emit adjacent literal
