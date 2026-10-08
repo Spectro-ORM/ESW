@@ -47,6 +47,43 @@ the inherited `phx-no-curly-interpolation` directive: literal braces inside such
 subtrees may still receive expression colors. The ESW compiler remains responsible
 for validating templates.
 
+## Tailwind CSS class completion
+
+The Tailwind CSS language server completes and previews classes in templates. It
+requires Node.js. With LazyVim's Tailwind extra
+(`lazyvim.plugins.extras.lang.tailwind`), add the template filetypes to its
+server options:
+
+```lua
+return {
+  {
+    "neovim/nvim-lspconfig",
+    opts = {
+      servers = {
+        tailwindcss = {
+          filetypes_include = { "esw", "hesw" },
+          settings = { tailwindCSS = { includeLanguages = { esw = "html", hesw = "html" } } },
+        },
+      },
+    },
+  },
+}
+```
+
+Without LazyVim, on Neovim 0.11 or newer with nvim-lspconfig installed, extend
+the server's default filetypes after plugins load:
+
+```lua
+vim.lsp.config("tailwindcss", {
+  filetypes = vim.list_extend(vim.deepcopy(vim.lsp.config.tailwindcss.filetypes), { "esw", "hesw" }),
+  settings = { tailwindCSS = { includeLanguages = { esw = "html", hesw = "html" } } },
+})
+vim.lsp.enable("tailwindcss")
+```
+
+The plugin does not configure the server itself: listing it would make LazyVim
+install it for projects that do not use Tailwind.
+
 ## Verify
 
 From the ESW repository root:

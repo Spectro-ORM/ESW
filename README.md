@@ -178,7 +178,22 @@ let html = Greeting(name: "World").render()
 ## Editor Support
 
 The [Neovim plugin](editors/nvim) highlights HTML and embedded Swift in `.esw`
-and `.hesw` templates. It reuses Neovim's built-in syntax files.
+and `.hesw` templates. It reuses Neovim's built-in syntax files. Its README also
+shows how to enable Tailwind CSS class completion in templates.
+
+Tailwind CSS v4 finds class names in `.esw` and `.hesw` files without
+configuration, including string literals inside expressions such as
+`class={["button", active ? "active" : nil]}`. Write each class name in full:
+Tailwind cannot see a name assembled at runtime, such as `"text-\(color)-500"`.
+
+In VS Code, treat templates as HTML so the Tailwind CSS IntelliSense extension
+completes classes in them:
+
+```json
+{
+  "files.associations": { "*.esw": "html", "*.hesw": "html" }
+}
+```
 
 ## Syntax Reference
 
@@ -815,13 +830,13 @@ cd Fixtures/PluginConsumer
 swift run --disable-sandbox App
 ```
 
-### Integration and Peregrine Generator Checks
+### Integration Checks
 
 ```bash
-python3 scripts/check_integration.py --peregrine ../Peregrine
+python3 scripts/check_integration.py
 ```
 
-This verifies consumer rendering, a template-only incremental rebuild, failed-batch output preservation, and negative Swift type checks for slots. With `--peregrine`, it also compiles Peregrine’s generator sources, feeds the resulting templates through ESW, parses generated Swift routes, and evaluates generated package manifests. It does not run the generated application’s database or HTTP stack.
+This verifies consumer rendering, a template-only incremental rebuild, failed-batch output preservation, and negative Swift type checks for slots. Roost's generator output is checked against published ESW releases by [roost-cli](https://github.com/roost-framework/roost-cli)'s own CI.
 
 ### Hot Reload Development
 
