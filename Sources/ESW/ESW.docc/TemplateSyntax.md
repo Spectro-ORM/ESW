@@ -59,6 +59,26 @@ Non-void tags require a matching closing tag or `/>`. The compiler reports
 mismatched tags, duplicate attributes, and malformed directives at their template
 locations. Void HTML elements such as `input` do not need an end tag.
 
+### Scoped styles
+
+In a `.hesw` file template, `<style :scoped>` keeps CSS beside the markup it styles:
+
+```html
+<style :scoped>
+  :scope { padding: 1rem; }
+  .title { font-weight: 600; }
+</style>
+<article><h2 class="title">{title}</h2></article>
+```
+
+The build plugin adds a `data-esw` attribute to the template's top-level elements
+and collects the CSS, wrapped in CSS `@scope`, into the target's generated
+`ESWStyles.css` constant. Rules match elements inside those top-level elements and
+stop at nested templates with their own scoped styles; use `:scope` to style the
+top-level elements themselves. Include `ESWStyles.css` once, for example with
+`<style><%== ESWStyles.css %></style>` in a layout. Inline macros and single-file
+compilation reject scoped styles.
+
 ### Dynamic attributes
 
 Use `name={expression}` rather than interpolating inside a quoted attribute:

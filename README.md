@@ -257,6 +257,28 @@ HTML mode reports unclosed or mismatched tags, duplicate attributes, and malform
 
 **Note:** `.heex` files, `#heex`, `--heex`, `TemplateSyntax.heex`, and `LiveView` still work as deprecated aliases and will be removed in ESW 2.0. The `#render` file macro is also deprecated and will be removed in 2.0; see [Macros](#macros).
 
+### Scoped Styles
+
+A `<style :scoped>` block keeps a template's CSS beside its markup and applies it only to that template. In `.hesw` file templates, ESWBuildPlugin marks the top-level elements with a `data-esw` attribute and collects the CSS, wrapped in CSS `@scope`, into the generated `ESWStyles.css` constant for the target:
+
+```html
+<style :scoped>
+  :scope { padding: 1rem; }
+  .title { font-weight: 600; }
+</style>
+<article><h2 class="title">{title}</h2></article>
+```
+
+Selectors match elements inside the template's top-level elements, including markup passed into component slots, and stop at nested templates that have their own scoped styles. Use `:scope` for the top-level elements themselves, as in `:scope.title` or `h2:scope`; a plain `.title` does not match a top-level element.
+
+Include the stylesheet once, for example in the layout:
+
+```html
+<style><%== ESWStyles.css %></style>
+```
+
+The block must be static CSS at the top of a file template. `#hesw` and single-file compilation reject it because they have no target stylesheet. `@scope` needs a current browser: Chrome or Edge 118, Safari 17.4, or Firefox with `@scope` support.
+
 ### Typed Views (No Template Header)
 
 Associate an ordinary Swift file with a template using `@ESWTemplate`:

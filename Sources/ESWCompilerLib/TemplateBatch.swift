@@ -53,8 +53,21 @@ public func compileTemplates(_ templates: [TemplateSource], emitSourceLocations:
         }
         names[symbol] = template.name
     }
-    return try sorted.map { template in
-        try compile(source: template.source, filename: template.name, sourceFile: template.sourceFile,
-                    emitSourceLocations: emitSourceLocations, view: template.view)
-    }.joined(separator: "\n")
+    var styles: [String] = []
+    let renderers = try sorted.map { template in
+        let (swift, css) = try compileWithStyles(source: template.source, filename: template.name, sourceFile: template.sourceFile,
+                                                 emitSourceLocations: emitSourceLocations, view: template.view)
+        if !css.isEmpty {
+            let name = template.name.replacing("*/", with: "* /")
+            styles.append("/* \(name) */\n@scope ([data-esw=\"\(Naming.scopeID(for: template.name))\"]) to ([data-esw]) {\n\(css.joined(separator: "\n"))\n}")
+        }
+        return swift
+    }
+    let stylesheet = """
+    /// CSS from this target's `<style :scoped>` blocks, scoped with `@scope` to each template's elements.
+    public enum ESWStyles {
+        public static let css = \(CodeGenerator.rawStringLiteral(styles.joined(separator: "\n\n")))
+    }
+    """
+    return (renderers + [stylesheet]).joined(separator: "\n")
 }

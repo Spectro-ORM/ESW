@@ -122,7 +122,12 @@ if CommandLine.arguments.dropFirst().first == "--typed-template",
    let marker = CommandLine.arguments.dropFirst(2).first {
     assert(registration.contains(marker), "A typed template-only edit must update render()")
 }
-print("All ESW, HESW, macro, namespaced template, typed view, and typed slot fixture assertions passed.")
+// Scoped styles mark top-level elements and collect the target's CSS.
+let scopedCard = renderScopedCard(title: "<Hi>")
+assert(scopedCard.contains("<article data-esw=\"scoped-card-c2471d11\"><h2 class=\"title\">&lt;Hi&gt;</h2></article>"))
+assert(ESWStyles.css.contains("@scope ([data-esw=\"scoped-card-c2471d11\"]) to ([data-esw]) {"))
+assert(ESWStyles.css.contains(".title { font-weight: bold; }"))
+print("All ESW, HESW, macro, namespaced template, typed view, typed slot, and scoped style fixture assertions passed.")
 if CommandLine.arguments.dropFirst().first == "--keyed-wire" {
     print("KEYED_WIRE:" + (try keyedWireFixture()))
 }

@@ -1,0 +1,8 @@
+<%!
+var title: String
+%>
+<style :scoped>
+  :scope { border: 1px solid; }
+  .title { font-weight: bold; }
+</style>
+<article><h2 class="title">{title}</h2></article>

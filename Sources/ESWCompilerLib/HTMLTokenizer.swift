@@ -131,6 +131,7 @@ extension Tokenizer {
         var loop: String?
         var identity: String?
         var interpolateCurly = name != "script" && name != "style"
+        var scoped = false
         while index < source.endIndex {
             let separated = peek()?.isWhitespace == true
             skipWhitespace()
@@ -159,6 +160,15 @@ extension Tokenizer {
                     throw htmlDiagnostic("phx-no-curly-interpolation is a bare compile-time attribute", at: attrMetadata)
                 }
                 interpolateCurly = false
+                index = afterKey
+                line = afterKeyLine
+                column = afterKeyColumn
+                continue
+            }
+            if key == ":scoped" {
+                guard name == "style" else { throw htmlDiagnostic(":scoped applies only to <style>", at: attrMetadata) }
+                guard peek() != "=" else { throw htmlDiagnostic(":scoped is a bare compile-time attribute", at: attrMetadata) }
+                scoped = true
                 index = afterKey
                 line = afterKeyLine
                 column = afterKeyColumn
@@ -207,6 +217,7 @@ extension Tokenizer {
         if selfClosing { advance() }
         guard peek() == ">" else { throw htmlDiagnostic("unterminated tag <\(name)>", at: metadata) }
         advance()
+        if scoped { return try readScopedStyle(metadata: metadata, plain: !selfClosing && tokens.count == 1 && loop == nil && condition == nil && identity == nil) }
         tokens.append(.text(selfClosing ? " />" : ">", metadata: metadata))
         var opening: [Token] = []
         if let identity {
@@ -217,11 +228,36 @@ extension Tokenizer {
             if let condition { opening.append(.code("+if \(condition) {", metadata: metadata)) }
         }
         let directives = (loop == nil ? 0 : 1) + (condition == nil ? 0 : 1)
+        // Top-level elements, including those passed into component slots, receive the scope attribute.
+        if htmlElements.allSatisfy({ $0.name.hasPrefix(".") || $0.name.hasPrefix(":") }) {
+            pendingRootClose = opening.count + tokens.count - 1
+        }
         if selfClosing || Self.voidElements.contains(name) {
             return opening + tokens + closingDirectives(directives, keyed: identity != nil, metadata: metadata)
         }
         openHTMLElement(name, line: metadata.line, column: metadata.column, directives: directives, keyed: identity != nil, interpolateCurly: interpolateCurly)
         return opening + tokens
+    }
+
+    /// Collects static CSS for the build plugin's `ESWStyles`; the element itself is not emitted.
+    private mutating func readScopedStyle(metadata: Metadata, plain: Bool) throws -> [Token] {
+        guard plain else { throw htmlDiagnostic("<style :scoped> takes no other attributes or directives", at: metadata) }
+        guard htmlElements.isEmpty else { throw htmlDiagnostic("<style :scoped> must be a top-level element", at: metadata) }
+        guard scope != nil else {
+            throw htmlDiagnostic("<style :scoped> needs a file template compiled by ESWBuildPlugin", at: metadata)
+        }
+        var css = ""
+        while !isRawTextClose("style") {
+            guard index < source.endIndex else { throw htmlDiagnostic("unclosed tag <style>", at: metadata) }
+            guard !isEExBoundary else { throw htmlDiagnostic("<style :scoped> must contain static CSS") }
+            css.append(advance())
+        }
+        for _ in 0..<"</style".count { advance() }
+        skipWhitespace()
+        guard peek() == ">" else { throw htmlDiagnostic("malformed closing tag") }
+        advance()
+        scopedStyles.append(css)
+        return []
     }
 
     private func closingDirectives(_ count: Int, keyed: Bool, metadata: Metadata) -> [Token] {
