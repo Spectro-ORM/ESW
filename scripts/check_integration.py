@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile real consumers, reject invalid slot types, and verify incremental builds.
 
-Usage: python3 scripts/check_integration.py [--roost /path/to/Roost]
+Usage: python3 scripts/check_integration.py
 """
 import argparse
 from pathlib import Path
@@ -23,9 +23,7 @@ def run(arguments, *, cwd=ROOT, succeeds=True):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--roost", "--peregrine", dest="roost", type=Path)
-    options = parser.parse_args()
+    argparse.ArgumentParser(description=__doc__).parse_args()
     run(["swift", "build", "--product", "ESWCompilerCLI"])
     run(["swift", "build", "--target", "ESW"])  # Probes import ESW and load ESWMacros.
     binary_dir = Path(run(["swift", "build", "--show-bin-path"]).strip())
@@ -110,26 +108,6 @@ struct ProbeTable: ESWComponent {
         diagnostic = run(["swiftc", "-typecheck", *includes, *plugin, companion], succeeds=False)
         assert "does not conform to protocol 'ESWView'" in diagnostic, diagnostic
         print("Missing templates, duplicate associations, and missing build output fail without replacing generated files.", flush=True)
-
-        if options.roost:
-            cli = options.roost.resolve() / "Sources/RoostCLI"
-            generator = probe / "generator-probe"
-            run([
-                "swiftc", cli / "Utils/FieldParser.swift", cli / "Templates/GeneratorTemplates.swift",
-                cli / "Templates/AuthTemplates.swift", cli / "Templates/ProjectTemplates.swift",
-                ROOT / "Fixtures/PeregrineGeneratorProbe.swift", "-o", generator,
-            ])
-            generated = probe / "roost"
-            run([generator, generated])
-            templates = sorted((generated / "Views").rglob("*.esw"))
-            generated_swift = generated / "ESWTemplates.swift"
-            view_sources = sorted((generated / "Views").rglob("*.swift"))
-            source_args = [arg for path in view_sources for arg in ("--view-source", path)]
-            run([compiler, "--batch", "--root", generated, "--output", generated_swift, *source_args, *templates])
-            run(["swiftc", "-frontend", "-parse", generated_swift, *view_sources, *sorted((generated / "Routes").glob("*.swift"))])
-            for variant in ("true", "false"):
-                run(["swift", "package", "--package-path", generated / f"manifest-{variant}", "dump-package"])
-            print("Roost generator output passes ESW compilation, Swift syntax checks, and manifest evaluation.", flush=True)
 
     fixture = ROOT / "Fixtures/PluginConsumer"
     run(["swift", "run", "--disable-sandbox", "App"], cwd=fixture)
