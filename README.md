@@ -4,9 +4,11 @@
 
 ## Library documentation
 
-Start with the [library documentation index](Documentation/README.md) for the
-`ESW`, `ESWLive`, and `ESWCompilerLib` guides and API references. Build a browsable
-DocC site for the current checkout with:
+Browse the [documentation for the latest release](https://roost-framework.github.io/ESW/docs/latest/),
+or [pick a release](https://roost-framework.github.io/ESW/docs/). Each release has its
+own guides and API references for `ESW`, `ESWLive`, and `ESWCompilerLib`. The
+[library documentation index](Documentation/README.md) lists the guides in this
+checkout. Build a browsable DocC site for the current checkout with:
 
 ```sh
 python3 scripts/build_docs.py
